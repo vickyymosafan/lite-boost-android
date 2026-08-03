@@ -12,25 +12,33 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
     private val logs = mutableStateListOf<String>("System Ready.")
-
+    
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -89,68 +97,155 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun OptimizerDashboard(consoleLogs: List<String>) {
         val coroutineScope = rememberCoroutineScope()
+        var storageStat by remember { mutableStateOf(OptimizerUtils.getStorageStatus()) }
+        var ramStat by remember { mutableStateOf(OptimizerUtils.getRamStatus(this@MainActivity)) }
         
+        // State for Junk Cleaner
+        var isScanning by remember { mutableStateOf(false) }
+        var scannedFiles by remember { mutableStateOf<List<File>?>(null) }
+
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Android Optimizer", style = MaterialTheme.typography.headlineMedium)
-            Text("Simple. Lightweight. No Root.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            Text("Pro Dashboard", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            Button(
+            // --- SYSTEM STATUS DASHBOARD ---
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Sisa Storage",
+                    value = "${storageStat.freeMb} MB",
+                    icon = Icons.Filled.Storage
+                )
+                StatusCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Sisa RAM",
+                    value = "${ramStat.freeMb} MB",
+                    icon = Icons.Filled.Memory
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // --- ACTION CARDS ---
+            ActionCard(
+                title = "Junk Cleaner",
+                description = "Pindai sampah dan konfirmasi sebelum menghapus.",
+                icon = Icons.Filled.DeleteSweep,
+                buttonText = if (isScanning) "Memindai..." else if (scannedFiles != null) "Scan Ulang" else "Mulai Scan",
+                buttonEnabled = !isScanning,
                 onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
                         logs.add("Error: Izin All Files Access belum diberikan!")
                         checkPermissions()
                     } else {
+                        isScanning = true
+                        scannedFiles = null
                         coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                OptimizerUtils.cleanJunk { log ->
-                                    logs.add(log)
-                                }
+                            val result = withContext(Dispatchers.IO) {
+                                OptimizerUtils.scanJunk { log -> logs.add(log) }
                             }
+                            scannedFiles = result
+                            isScanning = false
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Bersihkan Sampah (%temp%)")
+                }
+            )
+            
+            // Delete confirmation button (Tahap 2)
+            if (scannedFiles != null && !isScanning) {
+                if (scannedFiles!!.isNotEmpty()) {
+                    Button(
+                        onClick = {
+                            val filesToDelete = scannedFiles!!
+                            scannedFiles = null // hide button
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    OptimizerUtils.deleteJunkFiles(filesToDelete) { log -> logs.add(log) }
+                                }
+                                // Refresh stats
+                                storageStat = OptimizerUtils.getStorageStatus()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Text("🗑️ Hapus ${scannedFiles!!.size} File Sekarang!")
+                    }
+                } else {
+                    Text("Penyimpanan sudah bersih!", color = Color.Green, modifier = Modifier.padding(bottom = 8.dp))
+                }
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Button(
+
+            ActionCard(
+                title = "Fast Reboot",
+                description = "Matikan paksa aplikasi latar belakang.",
+                icon = Icons.Filled.Memory,
+                buttonText = "Boost Now",
+                buttonEnabled = true,
                 onClick = {
                     coroutineScope.launch {
                         withContext(Dispatchers.IO) {
-                            OptimizerUtils.fastReboot(this@MainActivity) { log ->
-                                logs.add(log)
-                            }
+                            OptimizerUtils.fastReboot(this@MainActivity) { log -> logs.add(log) }
                         }
+                        // Refresh stats
+                        ramStat = OptimizerUtils.getRamStatus(this@MainActivity)
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-            ) {
-                Text("Fast Reboot & Speed Up")
-            }
+                }
+            )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // --- CONSOLE LOG ---
             Text("Console Log:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Console Box
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black, RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(8.dp))
                     .padding(8.dp)
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(consoleLogs.reversed()) { log ->
-                        Text(text = "> $log", color = Color.Green, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                        Text(text = "> $log", color = Color(0xFF00FF00), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun StatusCard(modifier: Modifier = Modifier, title: String, value: String, icon: ImageVector) {
+        Card(
+            modifier = modifier,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(title, style = MaterialTheme.typography.labelMedium)
+                Text(value, style = MaterialTheme.typography.titleLarge)
+            }
+        }
+    }
+
+    @Composable
+    fun ActionCard(title: String, description: String, icon: ImageVector, buttonText: String, buttonEnabled: Boolean, onClick: () -> Unit) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    Text(description, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                Button(onClick = onClick, enabled = buttonEnabled) {
+                    Text(buttonText)
                 }
             }
         }
