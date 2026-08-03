@@ -9,7 +9,11 @@
     <!-- Permissions for Fast Reboot / Speed Up -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
+    <!-- Restrict to Android 9 and 10 only -->
+    <uses-sdk android:maxSdkVersion="29" />
+
     <application
+        android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:icon="@android:drawable/ic_dialog_info"
         android:label="Simple Optimizer"

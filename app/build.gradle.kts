@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "com.optimizer.android"
         minSdk = 28
-        targetSdk = 34
+        targetSdk = 29
         versionCode = 1
         versionName = "1.0"
 
