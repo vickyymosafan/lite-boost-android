@@ -1,8 +1,13 @@
 package com.optimizer.android
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,15 +58,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
-        val permissions = arrayOf(
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
-        val missing = permissions.filter { 
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED 
-        }
-        if (missing.isNotEmpty()) {
-            requestPermissionLauncher.launch(missing.toTypedArray())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                logs.add("Meminta izin All Files Access (Android 11+)...")
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.data = Uri.parse("package:$packageName")
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                }
+            } else {
+                logs.add("Storage Permission Granted (Android 11+).")
+            }
+        } else {
+            val permissions = arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+            val missing = permissions.filter { 
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED 
+            }
+            if (missing.isNotEmpty()) {
+                requestPermissionLauncher.launch(missing.toTypedArray())
+            }
         }
     }
 
@@ -77,10 +98,15 @@ class MainActivity : ComponentActivity() {
             
             Button(
                 onClick = {
-                    coroutineScope.launch {
-                        withContext(Dispatchers.IO) {
-                            OptimizerUtils.cleanJunk { log ->
-                                logs.add(log)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                        logs.add("Error: Izin All Files Access belum diberikan!")
+                        checkPermissions()
+                    } else {
+                        coroutineScope.launch {
+                            withContext(Dispatchers.IO) {
+                                OptimizerUtils.cleanJunk { log ->
+                                    logs.add(log)
+                                }
                             }
                         }
                     }
