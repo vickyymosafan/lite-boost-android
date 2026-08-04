@@ -17,9 +17,9 @@
     <application
         android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_dialog_info"
-        android:label="Simple Optimizer"
-        android:roundIcon="@android:drawable/ic_dialog_info"
+        android:icon="@drawable/ic_app_logo"
+        android:label="OMNIX OS"
+        android:roundIcon="@drawable/ic_app_logo"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <activity

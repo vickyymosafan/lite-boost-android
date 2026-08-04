@@ -1,4 +1,4 @@
-# 🚀 Lite Boost Android (Pro Version)
+# 🚀 OMNIX OS (God-Tier SuperApp)
 
 Sebuah aplikasi utilitas Android super ringan, bergaya **Gen-Z Neo-Brutalism**, yang dibuat khusus untuk membersihkan memori internal dan mengosongkan RAM tanpa memerlukan akses Root.
 

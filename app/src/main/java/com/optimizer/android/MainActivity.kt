@@ -184,8 +184,8 @@ class MainActivity : ComponentActivity() {
             .padding(16.dp)
             .verticalScroll(scrollState)
         ) {
-            Text("LITE BOOST", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-            Text("NO ROOT REQUIRED.", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
+            Text("OMNIX OS", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+            Text("GOD-TIER SUPERAPP • NO ROOT REQUIRED", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -295,7 +295,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "© 2026 vickymosafan. All Rights Reserved.\n\n" +
-                               "This software (Lite Boost) and its God-Tier Superpowers (Work Profile Engine, Anti-Delete Vault, DNS Web Shield, iClone Pro Camera, Pro Studio AI) are the exclusive intellectual property of vickymosafan.\n\n" +
+                               "This software (OMNIX OS) and its God-Tier Superpowers (Work Profile Engine, Anti-Delete Vault, DNS Web Shield, iClone Pro Camera, Pro Studio AI) are the exclusive intellectual property of vickymosafan.\n\n" +
                                "Unauthorized copying, modification, distribution, or use of this software without explicit permission is strictly prohibited.",
                         fontFamily = FontFamily.Monospace,
                         fontSize = 10.sp,

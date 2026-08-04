@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_description">Layanan ini diperlukan untuk mematikan paksa aplikasi secara otomatis (Hibernasi).</string>
+    <string name="app_name">OMNIX OS</string>
 </resources>
