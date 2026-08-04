@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.OptIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -44,6 +45,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
@@ -53,14 +55,12 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FlipCameraAndroid
-import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Redo
-import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SlowMotionVideo
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.TextFields
@@ -72,12 +72,15 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -115,14 +118,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Effect
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.BitmapOverlay
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.RgbMatrix
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
@@ -157,11 +168,14 @@ enum class DrawToolType { PEN, ERASER, RECTANGLE, CIRCLE, LINE }
 data class DrawAction(val points: List<Offset>, val color: Color, val width: Float, val tool: DrawToolType = DrawToolType.PEN)
 data class FilterPreset(val name: String, val color: Color, val matrix: FloatArray)
 data class TabItem(val name: String, val icon: ImageVector)
+data class ExportQuality(val label: String, val height: Int)
+data class ExportFps(val label: String, val fps: Int)
 
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║                    COLOR ENGINE                                 ║
+// ║                    COLOR ENGINE (4x5 UI & 4x4 Video)            ║
 // ╚══════════════════════════════════════════════════════════════════╝
 object ColorEngine {
+    // For Photo/UI (4x5 ColorMatrix with offset)
     fun buildMatrix(
         brightness: Float = 0f, contrast: Float = 1f, saturation: Float = 1f,
         temperature: Float = 0f, tint: Float = 0f, exposure: Float = 0f,
@@ -169,7 +183,7 @@ object ColorEngine {
         sharpness: Float = 0f
     ): ColorMatrix {
         val b = brightness * 255f + exposure * 128f
-        val c = contrast + sharpness * 0.3f // Sharpness pseudo via contrast edge boost
+        val c = contrast + sharpness * 0.3f
         val t = (1f - c) / 2f * 255f
         val tempR = temperature * 30f; val tempB = -temperature * 30f
         val tintG = tint * 20f
@@ -186,6 +200,25 @@ object ColorEngine {
         satMatrix.setToSaturation(saturation)
         cm.timesAssign(satMatrix)
         return cm
+    }
+
+    // For Video (Media3 RgbMatrix 4x4 - scaling instead of offset for approximation)
+    @OptIn(UnstableApi::class)
+    fun buildVideoEffect(cMatrix: ColorMatrix): Effect {
+        return RgbMatrix { _, _ ->
+            val v = cMatrix.values
+            // Convert 4x5 to 4x4 (discarding 5th column translation because RgbMatrix only scales)
+            // We approximate brightness/offsets by slightly scaling the diagonals
+            val rScale = v[0] + (v[4] / 255f)
+            val gScale = v[6] + (v[9] / 255f)
+            val bScale = v[12] + (v[14] / 255f)
+            floatArrayOf(
+                rScale, v[1], v[2], 0f,
+                v[5], gScale, v[7], 0f,
+                v[10], v[11], bScale, 0f,
+                0f, 0f, 0f, 1f
+            )
+        }
     }
 
     val PRESETS = listOf(
@@ -220,11 +253,14 @@ class ProStudioActivity : ComponentActivity() {
         exoPlayer?.release(); exoPlayer = null
     }
 
-    // ═══════════ EXPORT: VIDEO (1080p H.264) ═══════════
-    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    // ═══════════ EXPORT: VIDEO (Transformer) ═══════════
+    @OptIn(UnstableApi::class)
     private fun exportVideo(
         sourceUri: Uri, trimStartMs: Long, trimEndMs: Long,
-        textToBurn: String, textColorInt: Int, textSizePx: Float,
+        qualityHeight: Int, fps: Int,
+        colorEffect: Effect?,
+        drawActions: List<DrawAction>, previewWidth: Float, previewHeight: Float,
+        textToBurn: String, textColorInt: Int, textSizePx: Float, textHasBg: Boolean, textBgColor: Int,
         onProgress: (String) -> Unit, onComplete: (String) -> Unit, onError: (String) -> Unit
     ) {
         val outputDir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
@@ -234,35 +270,78 @@ class ProStudioActivity : ComponentActivity() {
             .setStartPositionMs(trimStartMs).setEndPositionMs(trimEndMs).build()
         val mediaItem = MediaItem.Builder().setUri(sourceUri).setClippingConfiguration(clipping).build()
 
-        val videoEffects = mutableListOf<androidx.media3.common.Effect>()
-        // Burn text overlay if present
-        if (textToBurn.isNotEmpty()) {
-            val textBmp = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(textBmp)
-            val paint = android.graphics.Paint().apply {
-                color = textColorInt; textSize = textSizePx; isAntiAlias = true
-                isFakeBoldText = true; textAlign = android.graphics.Paint.Align.CENTER
+        val videoEffects = mutableListOf<Effect>()
+        if (colorEffect != null) videoEffects.add(colorEffect)
+
+        // Generate combined drawing & text overlay bitmap (1080p canvas)
+        val overlayW = 1920; val overlayH = 1080
+        val overlayBmp = Bitmap.createBitmap(overlayW, overlayH, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(overlayBmp)
+        
+        // Render drawings mapped to 1080p
+        val scaleX = overlayW / previewWidth; val scaleY = overlayH / previewHeight
+        val drawPaint = android.graphics.Paint().apply { style = android.graphics.Paint.Style.STROKE; strokeCap = android.graphics.Paint.Cap.ROUND; isAntiAlias = true }
+        val fillPaint = android.graphics.Paint().apply { style = android.graphics.Paint.Style.FILL; isAntiAlias = true }
+        
+        for (a in drawActions) {
+            drawPaint.color = android.graphics.Color.argb(255, (a.color.red*255).toInt(), (a.color.green*255).toInt(), (a.color.blue*255).toInt())
+            drawPaint.strokeWidth = a.width * ((scaleX + scaleY) / 2)
+            if (a.tool == DrawToolType.ERASER) {
+                // Not perfectly supported in export without porter duff on a layer, so skip eraser in raw burn
+                continue
             }
-            canvas.drawText(textToBurn, 960f, 540f, paint)
-            val overlay = object : androidx.media3.effect.BitmapOverlay() {
-                override fun getBitmap(presentationTimeUs: Long): Bitmap = textBmp
+            if (a.tool == DrawToolType.PEN && a.points.size > 1) {
+                for (i in 0 until a.points.size - 1) {
+                    canvas.drawLine(a.points[i].x * scaleX, a.points[i].y * scaleY, a.points[i+1].x * scaleX, a.points[i+1].y * scaleY, drawPaint)
+                }
+            } else if (a.tool == DrawToolType.RECTANGLE && a.points.size >= 2) {
+                val s = a.points.first(); val e = a.points.last()
+                canvas.drawRect(min(s.x, e.x) * scaleX, min(s.y, e.y) * scaleY, max(s.x, e.x) * scaleX, max(s.y, e.y) * scaleY, drawPaint)
+            } else if (a.tool == DrawToolType.CIRCLE && a.points.size >= 2) {
+                val s = a.points.first(); val e = a.points.last()
+                val r = sqrt((e.x - s.x) * (e.x - s.x) + (e.y - s.y) * (e.y - s.y)) / 2 * scaleX
+                canvas.drawCircle((s.x+e.x)/2 * scaleX, (s.y+e.y)/2 * scaleY, r, drawPaint)
             }
-            videoEffects.add(androidx.media3.effect.OverlayEffect(listOf(overlay)))
         }
 
-        val edited = EditedMediaItem.Builder(mediaItem)
-            .setEffects(Effects(emptyList(), videoEffects)).build()
+        // Render Text
+        if (textToBurn.isNotEmpty()) {
+            val textPaint = android.graphics.Paint().apply {
+                color = textColorInt; textSize = textSizePx * 3f; isAntiAlias = true
+                isFakeBoldText = true; textAlign = android.graphics.Paint.Align.CENTER
+            }
+            if (textHasBg) {
+                fillPaint.color = textBgColor; fillPaint.alpha = 180
+                val bounds = android.graphics.Rect()
+                textPaint.getTextBounds(textToBurn, 0, textToBurn.length, bounds)
+                canvas.drawRoundRect(960f - bounds.width()/2 - 40f, 540f - bounds.height() - 20f, 960f + bounds.width()/2 + 40f, 540f + 20f, 20f, 20f, fillPaint)
+            }
+            canvas.drawText(textToBurn, 960f, 540f, textPaint)
+        }
+
+        val overlay = object : BitmapOverlay() { override fun getBitmap(timeUs: Long): Bitmap = overlayBmp }
+        videoEffects.add(OverlayEffect(listOf(overlay)))
+
+        val edited = EditedMediaItem.Builder(mediaItem).setEffects(Effects(emptyList(), videoEffects)).build()
+        
+        val transformRequest = TransformationRequest.Builder()
+            .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setResolution(qualityHeight)
+            // Note: Media3 Transformer currently manages frame rates internally via codec parameters, but we can set constraints if needed
+            .build()
 
         val transformer = Transformer.Builder(this)
+            .setTransformationRequest(transformRequest)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(c: Composition, r: ExportResult) { onComplete(outputFile.absolutePath) }
                 override fun onError(c: Composition, r: ExportResult, e: ExportException) { onError(e.message ?: "Failed") }
             }).build()
-        onProgress("ENCODING → ${outputFile.name}")
+            
+        onProgress("ENCODING ${qualityHeight}p → ${outputFile.name}")
         transformer.start(edited, outputFile.absolutePath)
     }
 
-    // ═══════════ EXPORT: PHOTO (PNG/JPG) ═══════════
+    // ═══════════ EXPORT: PHOTO (PNG) ═══════════
     private fun exportPhoto(bitmap: Bitmap, onComplete: (String) -> Unit) {
         val dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
         val file = File(dir, "OMNIX_Photo_${System.currentTimeMillis()}.png")
@@ -272,7 +351,7 @@ class ProStudioActivity : ComponentActivity() {
         } catch (e: Exception) { Toast.makeText(this, "Export error: ${e.message}", Toast.LENGTH_SHORT).show() }
     }
 
-    // ═══════════ EXTRACT AUDIO (M4A Remux) ═══════════
+    // ═══════════ EXTRACT AUDIO (M4A) ═══════════
     private fun extractAudio(sourceUri: Uri, onComplete: (String) -> Unit, onError: (String) -> Unit) {
         Thread {
             try {
@@ -302,7 +381,6 @@ class ProStudioActivity : ComponentActivity() {
         }.start()
     }
 
-    // ═══════════ FREEZE FRAME (Capture Bitmap) ═══════════
     private fun captureFrame(uri: Uri, positionMs: Long, onComplete: (Bitmap) -> Unit) {
         Thread {
             try {
@@ -311,11 +389,10 @@ class ProStudioActivity : ComponentActivity() {
                 val frame = retriever.getFrameAtTime(positionMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
                 retriever.release()
                 frame?.let { runOnUiThread { onComplete(it) } }
-            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Capture failed", Toast.LENGTH_SHORT).show() } }
+            } catch (e: Exception) {}
         }.start()
     }
 
-    // ═══════════ CROP BITMAP TO RATIO ═══════════
     private fun cropToRatio(bmp: Bitmap, ratioW: Float, ratioH: Float): Bitmap {
         val targetR = ratioW / ratioH; val currentR = bmp.width.toFloat() / bmp.height.toFloat()
         return if (currentR > targetR) {
@@ -328,7 +405,7 @@ class ProStudioActivity : ComponentActivity() {
     // ╔══════════════════════════════════════════════════════════════╗
     // ║              MAIN EDITOR COMPOSABLE                         ║
     // ╚══════════════════════════════════════════════════════════════╝
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
     @Composable
     fun StudioEditorApp() {
         var selectedUri by remember { mutableStateOf<Uri?>(null) }
@@ -355,11 +432,13 @@ class ProStudioActivity : ComponentActivity() {
         var activeFilterIdx by remember { mutableIntStateOf(0) }
         var filterIntensity by remember { mutableFloatStateOf(1f) }
 
-        // Speed
+        // Speed & Trim (Handles)
         var playbackSpeed by remember { mutableFloatStateOf(1f) }
         var keepPitch by remember { mutableStateOf(true) }
+        var trimStartRatio by remember { mutableFloatStateOf(0f) }
+        var trimEndRatio by remember { mutableFloatStateOf(1f) }
 
-        // Text (full styling)
+        // Text
         var textOverlay by remember { mutableStateOf("") }
         var textSize by remember { mutableFloatStateOf(28f) }
         var textBold by remember { mutableStateOf(true) }
@@ -377,26 +456,31 @@ class ProStudioActivity : ComponentActivity() {
         var fadeInSec by remember { mutableFloatStateOf(0f) }
         var fadeOutSec by remember { mutableFloatStateOf(0f) }
 
-        // Draw (full tools)
+        // Draw
         val drawActions = remember { mutableStateListOf<DrawAction>() }
         val redoStack = remember { mutableStateListOf<DrawAction>() }
         var brushColor by remember { mutableStateOf(Rd) }
         var brushWidth by remember { mutableFloatStateOf(8f) }
         var drawTool by remember { mutableStateOf(DrawToolType.PEN) }
 
-        // Photo transform
+        // Transform & Export settings
         var rotation by remember { mutableFloatStateOf(0f) }
         var flipH by remember { mutableStateOf(false) }
         var flipV by remember { mutableStateOf(false) }
         var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
+        var expQuality by remember { mutableStateOf(ExportQuality("1080p", 1080)) }
+        var expFps by remember { mutableStateOf(ExportFps("30fps", 30)) }
+        var expMenuOpen by remember { mutableStateOf(false) }
 
-        // Playback
+        // Playback & Preview Canvas Dimensions
         var currentPositionMs by remember { mutableStateOf(0L) }
         var durationMs by remember { mutableStateOf(1L) }
+        var previewW by remember { mutableFloatStateOf(1000f) }
+        var previewH by remember { mutableFloatStateOf(1000f) }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
 
-        // Compute matrices
+        // Matrices & Live ExoPlayer Effects
         val adjustMatrix = remember(brightness, contrast, saturation, temperature, tint, exposure, highlights, shadows, fade, sharpness) {
             ColorEngine.buildMatrix(brightness, contrast, saturation, temperature, tint, exposure, highlights, shadows, fade, sharpness)
         }
@@ -410,9 +494,16 @@ class ProStudioActivity : ComponentActivity() {
             if (filterMatrix != null) { val cm = ColorMatrix(adjustMatrix.values.clone()); cm.timesAssign(filterMatrix); cm } else adjustMatrix
         }
 
+        // Apply Media3 Video Effects for live preview
+        LaunchedEffect(combinedMatrix, exoPlayer) {
+            val videoEffect = ColorEngine.buildVideoEffect(combinedMatrix)
+            exoPlayer?.setVideoEffects(listOf(videoEffect))
+        }
+
         // Launchers
         val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null) { selectedUri = uri; mediaType = "video"; statusLog = "VIDEO LOADED"
+                trimStartRatio = 0f; trimEndRatio = 1f
                 exoPlayer?.let { it.setMediaItem(MediaItem.fromUri(uri)); it.prepare(); it.playWhenReady = true; isPlaying = true } }
         }
         val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -429,9 +520,38 @@ class ProStudioActivity : ComponentActivity() {
             }
         }
 
-        // Position tracking
-        LaunchedEffect(isPlaying) { while (isPlaying) { currentPositionMs = exoPlayer?.currentPosition ?: 0L; durationMs = exoPlayer?.duration?.coerceAtLeast(1L) ?: 1L; delay(200) } }
-        LaunchedEffect(volume, isMuted) { exoPlayer?.volume = if (isMuted) 0f else volume }
+        // Position tracking & Trim bounds
+        LaunchedEffect(isPlaying, trimStartRatio, trimEndRatio) {
+            while (isPlaying) {
+                val cur = exoPlayer?.currentPosition ?: 0L
+                val dur = exoPlayer?.duration?.coerceAtLeast(1L) ?: 1L
+                currentPositionMs = cur; durationMs = dur
+                
+                val startMs = (trimStartRatio * dur).toLong()
+                val endMs = (trimEndRatio * dur).toLong()
+                if (cur < startMs || cur > endMs) {
+                    exoPlayer?.seekTo(startMs)
+                }
+                
+                // Live Fade Audio simulation (UI only, export uses processor or default)
+                if (dur > 0 && fadeInSec > 0) {
+                    val fadeMs = (fadeInSec * 1000).toLong()
+                    if (cur - startMs < fadeMs) {
+                        val fadeVol = (cur - startMs).toFloat() / fadeMs.toFloat()
+                        exoPlayer?.volume = if (isMuted) 0f else volume * fadeVol
+                    } else if (endMs - cur < (fadeOutSec * 1000).toLong()) {
+                        val fadeOutMs = (fadeOutSec * 1000).toLong()
+                        val fadeVol = (endMs - cur).toFloat() / fadeOutMs.toFloat()
+                        exoPlayer?.volume = if (isMuted) 0f else volume * fadeVol
+                    } else {
+                        exoPlayer?.volume = if (isMuted) 0f else volume
+                    }
+                } else {
+                    exoPlayer?.volume = if (isMuted) 0f else volume
+                }
+                delay(100)
+            }
+        }
 
         val tabs = listOf(TabItem("EDIT", Icons.Filled.Tune), TabItem("FILTER", Icons.Filled.AutoAwesome), TabItem("SPEED", Icons.Filled.Speed), TabItem("TEXT", Icons.Filled.TextFields),
             TabItem("DRAW", Icons.Filled.Brush), TabItem("AUDIO", Icons.Filled.MusicNote), TabItem("CROP", Icons.Filled.Crop), TabItem("AI", Icons.Filled.AutoFixHigh))
@@ -439,20 +559,36 @@ class ProStudioActivity : ComponentActivity() {
         // ═══ LAYOUT ═══
         Column(modifier = Modifier.fillMaxSize().background(Bk)) {
             // TOP BAR
-            Row(modifier = Modifier.fillMaxWidth().background(Dk).padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(Dk).padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { finish() }, Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null, tint = Wh, modifier = Modifier.size(18.dp)) }
                     Spacer(Modifier.width(6.dp)); Text("OMNIX STUDIO", color = Wh, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 1.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    MiniBtn("VIDEO", Icons.Filled.Videocam) { videoLauncher.launch("video/*") }
-                    MiniBtn("FOTO", Icons.Filled.Image) { imageLauncher.launch("image/*") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MiniBtn("VID", Icons.Filled.Videocam) { videoLauncher.launch("video/*") }
+                    MiniBtn("PIC", Icons.Filled.Image) { imageLauncher.launch("image/*") }
+                    Box {
+                        OutlinedButton(onClick = { expMenuOpen = true }, shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, Cy), colors = ButtonDefaults.outlinedButtonColors(contentColor = Cy), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp), modifier = Modifier.height(26.dp)) {
+                            Text("${expQuality.label} | ${expFps.label}", fontSize = 8.sp, fontWeight = FontWeight.Bold); Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(12.dp))
+                        }
+                        DropdownMenu(expanded = expMenuOpen, onDismissRequest = { expMenuOpen = false }, modifier = Modifier.background(Md)) {
+                            listOf(ExportQuality("480p", 480), ExportQuality("720p", 720), ExportQuality("1080p", 1080)).forEach { q ->
+                                DropdownMenuItem(text = { Text(q.label, color = Wh) }, onClick = { expQuality = q; expMenuOpen = false })
+                            }
+                            listOf(ExportFps("24fps", 24), ExportFps("30fps", 30), ExportFps("60fps", 60)).forEach { f ->
+                                DropdownMenuItem(text = { Text(f.label, color = Yw) }, onClick = { expFps = f; expMenuOpen = false })
+                            }
+                        }
+                    }
                     MiniBtn("EXPORT", Icons.Filled.FileDownload, true) {
                         when {
                             selectedUri == null -> Toast.makeText(context, "Pilih media dulu!", Toast.LENGTH_SHORT).show()
                             mediaType == "video" -> { statusLog = "EXPORTING..."
-                                val d = durationMs; val tc = if (textColor == Wh) android.graphics.Color.WHITE else android.graphics.Color.argb(255, (textColor.red*255).toInt(), (textColor.green*255).toInt(), (textColor.blue*255).toInt())
-                                exportVideo(selectedUri!!, 0L, d, textOverlay, tc, textSize * 3f,
+                                val tc = if (textColor == Wh) android.graphics.Color.WHITE else android.graphics.Color.argb(255, (textColor.red*255).toInt(), (textColor.green*255).toInt(), (textColor.blue*255).toInt())
+                                val bgc = android.graphics.Color.argb(255, (textBgColor.red*255).toInt(), (textBgColor.green*255).toInt(), (textBgColor.blue*255).toInt())
+                                exportVideo(selectedUri!!, (trimStartRatio * durationMs).toLong(), (trimEndRatio * durationMs).toLong(),
+                                    expQuality.height, expFps.fps, ColorEngine.buildVideoEffect(combinedMatrix), drawActions, previewW, previewH,
+                                    textOverlay, tc, textSize, textHasBg, bgc,
                                     onProgress = { statusLog = it }, onComplete = { statusLog = "DONE: $it"; Toast.makeText(context, "Video saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" })
                             }
                             mediaType == "image" && photoBitmap != null -> { statusLog = "EXPORTING PHOTO..."
@@ -464,7 +600,10 @@ class ProStudioActivity : ComponentActivity() {
             }
 
             // PREVIEW AREA
-            Box(modifier = Modifier.fillMaxWidth().weight(1f).background(Bk)) {
+            Box(Modifier.fillMaxWidth().weight(1f).background(Bk).pointerInput(Unit) {
+                // Track preview dimensions for mapping drawing to 1080p
+                previewW = size.width.toFloat(); previewH = size.height.toFloat()
+            }) {
                 if (selectedUri != null) {
                     when (mediaType) {
                         "video" -> AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = exoPlayer; useController = false; setBackgroundColor(android.graphics.Color.BLACK) } }, modifier = Modifier.fillMaxSize())
@@ -476,61 +615,54 @@ class ProStudioActivity : ComponentActivity() {
                             Image(bitmap = imgBmp, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit, colorFilter = ColorFilter.colorMatrix(combinedMatrix))
                         }
                     }
-                    // Vignette overlay
                     if (vignette > 0f) { Canvas(modifier = Modifier.fillMaxSize()) { drawRect(brush = Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = vignette * 0.8f)), center = center, radius = size.minDimension * 0.7f)) } }
-                    // Grain overlay
                     if (grain > 0f) { val noiseBmp = remember { val w=100; val h=100; val px=IntArray(w*h){ val n=(Math.random()*180).toInt(); android.graphics.Color.argb(50,n,n,n) }; Bitmap.createBitmap(px,w,h,Bitmap.Config.ARGB_8888).asImageBitmap() }
                         Image(bitmap = noiseBmp, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = grain * 0.5f) }
-                    // Draw overlay
+                    
                     DrawOverlay(drawActions)
                     if (currentTab == 4) InteractiveDrawCanvas(drawActions, redoStack, brushColor, brushWidth, drawTool)
-                    // Text overlay with full styling
+                    
                     if (textOverlay.isNotEmpty()) {
                         Box(modifier = Modifier.align(Alignment.Center)) {
-                            // Stroke layer (8 offset copies)
                             if (textHasStroke) { val sw = textStrokeWidth
                                 listOf(-sw to 0f, sw to 0f, 0f to -sw, 0f to sw, -sw to -sw, sw to -sw, -sw to sw, sw to sw).forEach { (dx, dy) ->
                                     Text(textOverlay, color = textStrokeColor, fontSize = textSize.sp, fontWeight = if (textBold) FontWeight.Black else FontWeight.Normal, modifier = Modifier.offset(x = dx.dp, y = dy.dp), textAlign = TextAlign.Center) }
                             }
-                            // Shadow layer
                             if (textHasShadow) { Text(textOverlay, color = Color.Black.copy(alpha = 0.6f), fontSize = textSize.sp, fontWeight = if (textBold) FontWeight.Black else FontWeight.Normal, modifier = Modifier.offset(x = 3.dp, y = 3.dp), textAlign = TextAlign.Center) }
-                            // Background box
                             val bgMod = if (textHasBg) Modifier.background(textBgColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp)).padding(horizontal = 14.dp, vertical = 6.dp) else Modifier
                             Text(textOverlay, color = textColor, fontSize = textSize.sp, fontWeight = if (textBold) FontWeight.Black else FontWeight.Normal, modifier = bgMod, textAlign = TextAlign.Center)
                         }
                     }
-                    // Badges
                     if (activeFilterIdx > 0) { Box(Modifier.align(Alignment.TopStart).padding(8.dp).background(Ac, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(ColorEngine.PRESETS[activeFilterIdx].name, color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
-                    if (playbackSpeed != 1f) { Box(Modifier.align(Alignment.TopEnd).padding(8.dp).background(Yw, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text("${playbackSpeed}x", color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
                 } else {
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Icon(Icons.Filled.AddPhotoAlternate, null, tint = Lt, modifier = Modifier.size(56.dp)); Spacer(Modifier.height(12.dp))
                         Text("OMNIX STUDIO", color = Wh, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
                         Text("Pilih video atau foto untuk mulai", color = Color.Gray, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                        Spacer(Modifier.height(20.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(onClick = { videoLauncher.launch("video/*") }, shape = RoundedCornerShape(4.dp), border = BorderStroke(2.dp, Ac), colors = ButtonDefaults.outlinedButtonColors(contentColor = Ac)) { Icon(Icons.Filled.Videocam, null, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("VIDEO", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                            OutlinedButton(onClick = { imageLauncher.launch("image/*") }, shape = RoundedCornerShape(4.dp), border = BorderStroke(2.dp, Wh), colors = ButtonDefaults.outlinedButtonColors(contentColor = Wh)) { Icon(Icons.Filled.Image, null, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("FOTO", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                        }
                     }
                 }
             }
 
-            // PLAYBACK CONTROLS (video)
+            // TIMELINE & TRIM HANDLES
             if (selectedUri != null && mediaType == "video") {
                 Row(Modifier.fillMaxWidth().background(Dk).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(fmtTime(currentPositionMs), color = Ac, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer?.seekBack() }, Modifier.size(32.dp)) { Icon(Icons.Filled.Replay10, null, tint = Wh, modifier = Modifier.size(18.dp)) }
-                        IconButton(onClick = { exoPlayer?.let { if (it.isPlaying) { it.pause(); isPlaying = false } else { it.play(); isPlaying = true } } }, Modifier.size(40.dp)) { Icon(if (isPlaying) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle, null, tint = Ac, modifier = Modifier.size(32.dp)) }
-                        IconButton(onClick = { exoPlayer?.seekForward() }, Modifier.size(32.dp)) { Icon(Icons.Filled.Forward10, null, tint = Wh, modifier = Modifier.size(18.dp)) }
-                        IconButton(onClick = { exoPlayer?.seekTo((exoPlayer?.currentPosition ?: 0) - 33) }, Modifier.size(24.dp)) { Text("<", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                        IconButton(onClick = { exoPlayer?.seekTo((exoPlayer?.currentPosition ?: 0) + 33) }, Modifier.size(24.dp)) { Text(">", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        IconButton(onClick = { exoPlayer?.let { if (it.isPlaying) { it.pause(); isPlaying = false } else { it.play(); isPlaying = true } } }, Modifier.size(36.dp)) { Icon(if (isPlaying) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle, null, tint = Ac, modifier = Modifier.size(28.dp)) }
                     }
                     Text(fmtTime(durationMs), color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
-                Slider(value = currentPositionMs.toFloat() / durationMs.toFloat(), onValueChange = { exoPlayer?.seekTo((it * durationMs).toLong()); currentPositionMs = (it * durationMs).toLong() },
-                    modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 12.dp), colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac, inactiveTrackColor = Lt))
+                // Interactive Trim Handles using RangeSlider
+                RangeSlider(
+                    value = trimStartRatio..trimEndRatio,
+                    onValueChange = { range -> 
+                        trimStartRatio = range.start; trimEndRatio = range.endInclusive
+                        val sMs = (range.start * durationMs).toLong()
+                        exoPlayer?.seekTo(sMs); currentPositionMs = sMs
+                    },
+                    modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 12.dp),
+                    colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac.copy(alpha=0.6f), inactiveTrackColor = Lt)
+                )
             }
 
             // STATUS LOG
@@ -540,24 +672,23 @@ class ProStudioActivity : ComponentActivity() {
             Box(Modifier.fillMaxWidth().height(175.dp).background(Dk).padding(8.dp)) {
                 when (currentTab) {
                     0 -> PanelEdit(brightness, contrast, saturation, temperature, tint, exposure, highlights, shadows, fade, sharpness, vignette, grain,
-                        onB = { brightness = it; statusLog = "BRIGHTNESS: ${(it*100).toInt()}%" }, onC = { contrast = it; statusLog = "CONTRAST: ${(it*100).toInt()}%" }, onS = { saturation = it; statusLog = "SATURATION: ${(it*100).toInt()}%" },
-                        onTemp = { temperature = it; statusLog = "TEMPERATURE: ${(it*100).toInt()}" }, onTint = { tint = it; statusLog = "TINT: ${(it*100).toInt()}" }, onExp = { exposure = it; statusLog = "EXPOSURE: ${(it*100).toInt()}" },
-                        onHi = { highlights = it; statusLog = "HIGHLIGHTS: ${(it*100).toInt()}" }, onSh = { shadows = it; statusLog = "SHADOWS: ${(it*100).toInt()}" }, onFd = { fade = it; statusLog = "FADE: ${(it*100).toInt()}" },
-                        onSharp = { sharpness = it; statusLog = "SHARPNESS: ${(it*100).toInt()}" }, onVig = { vignette = it; statusLog = "VIGNETTE: ${(it*100).toInt()}" }, onGrain = { grain = it; statusLog = "GRAIN: ${(it*100).toInt()}" },
-                        onReset = { brightness=0f; contrast=1f; saturation=1f; temperature=0f; tint=0f; exposure=0f; highlights=0f; shadows=0f; fade=0f; sharpness=0f; vignette=0f; grain=0f; activeFilterIdx=0; statusLog="ALL RESET" })
-                    1 -> PanelFilter(activeFilterIdx, filterIntensity, onSelect = { activeFilterIdx = it; statusLog = if (it > 0) "FILTER: ${ColorEngine.PRESETS[it].name}" else "FILTER OFF" }, onIntensity = { filterIntensity = it; statusLog = "INTENSITY: ${(it*100).toInt()}%" })
-                    2 -> PanelSpeed(playbackSpeed, keepPitch, onSpeed = { playbackSpeed = it; exoPlayer?.playbackParameters = PlaybackParameters(it, if (keepPitch) 1f else it); statusLog = "SPEED: ${it}x" }, onPitch = { keepPitch = it; exoPlayer?.playbackParameters = PlaybackParameters(playbackSpeed, if (it) 1f else playbackSpeed) },
+                        onB = { brightness = it; statusLog = "BRIGHTNESS: ${(it*100).toInt()}%" }, onC = { contrast = it }, onS = { saturation = it },
+                        onTemp = { temperature = it }, onTint = { tint = it }, onExp = { exposure = it },
+                        onHi = { highlights = it }, onSh = { shadows = it }, onFd = { fade = it },
+                        onSharp = { sharpness = it }, onVig = { vignette = it }, onGrain = { grain = it },
+                        onReset = { brightness=0f; contrast=1f; saturation=1f; temperature=0f; tint=0f; exposure=0f; highlights=0f; shadows=0f; fade=0f; sharpness=0f; vignette=0f; grain=0f; activeFilterIdx=0 })
+                    1 -> PanelFilter(activeFilterIdx, filterIntensity, onSelect = { activeFilterIdx = it }, onIntensity = { filterIntensity = it })
+                    2 -> PanelSpeed(playbackSpeed, keepPitch, onSpeed = { playbackSpeed = it; exoPlayer?.playbackParameters = PlaybackParameters(it, if (keepPitch) 1f else it) }, onPitch = { keepPitch = it; exoPlayer?.playbackParameters = PlaybackParameters(playbackSpeed, if (it) 1f else playbackSpeed) },
                         onFreezeFrame = { if (selectedUri != null && mediaType == "video") { captureFrame(selectedUri!!, currentPositionMs) { bmp -> photoBitmap = bmp; mediaType = "image"; statusLog = "FREEZE FRAME CAPTURED" } } else statusLog = "LOAD VIDEO FIRST" })
                     3 -> PanelText(textOverlay, textSize, textBold, textColor, textHasBg, textBgColor, textHasStroke, textStrokeColor, textStrokeWidth, textHasShadow,
-                        onText = { textOverlay = it; statusLog = if (it.isEmpty()) "TEXT CLEARED" else "TEXT: \"$it\"" }, onSize = { textSize = it }, onBold = { textBold = it },
-                        onColor = { textColor = it }, onBgToggle = { textHasBg = it }, onBgColor = { textBgColor = it }, onStrokeToggle = { textHasStroke = it }, onStrokeColor = { textStrokeColor = it }, onStrokeW = { textStrokeWidth = it }, onShadowToggle = { textHasShadow = it })
-                    4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it; statusLog = "BRUSH: ${it.toInt()}px" }, onTool = { drawTool = it; statusLog = "TOOL: ${it.name}" },
-                        onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()); statusLog = "UNDO" } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()); statusLog = "REDO" } }, onClear = { drawActions.clear(); redoStack.clear(); statusLog = "CANVAS CLEARED" })
-                    5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it; statusLog = "VOLUME: ${(it*100).toInt()}%" }, onMute = { isMuted = it; statusLog = if (it) "MUTED" else "UNMUTED" }, onFadeIn = { fadeInSec = it; statusLog = "FADE IN: ${it.toInt()}s" }, onFadeOut = { fadeOutSec = it; statusLog = "FADE OUT: ${it.toInt()}s" },
-                        onExtract = { if (selectedUri != null && mediaType == "video") { statusLog = "EXTRACTING AUDIO..."; extractAudio(selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } else statusLog = "LOAD VIDEO FIRST" })
-                    6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f; statusLog = "ROTATION: ${rotation.toInt()}°" }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
-                        onReset = { rotation = 0f; flipH = false; flipV = false; statusLog = "TRANSFORM RESET" },
-                        onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } else statusLog = "LOAD PHOTO FIRST" })
+                        onText = { textOverlay = it }, onSize = { textSize = it }, onBold = { textBold = it }, onColor = { textColor = it }, onBgToggle = { textHasBg = it }, onBgColor = { textBgColor = it }, onStrokeToggle = { textHasStroke = it }, onStrokeColor = { textStrokeColor = it }, onStrokeW = { textStrokeWidth = it }, onShadowToggle = { textHasShadow = it })
+                    4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it }, onTool = { drawTool = it },
+                        onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()) } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()) } }, onClear = { drawActions.clear(); redoStack.clear() })
+                    5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it }, onMute = { isMuted = it }, onFadeIn = { fadeInSec = it }, onFadeOut = { fadeOutSec = it },
+                        onExtract = { if (selectedUri != null && mediaType == "video") { extractAudio(selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
+                    6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
+                        onReset = { rotation = 0f; flipH = false; flipV = false },
+                        onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } })
                     7 -> PanelAi { statusLog = "$it — COMING SOON" }
                 }
             }
@@ -587,9 +718,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: FILTER (10 Presets + Intensity)          ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelFilter(activeIdx: Int, intensity: Float, onSelect: (Int)->Unit, onIntensity: (Float)->Unit) {
         Column { Text("CINEMATIC PRESETS", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) { items(ColorEngine.PRESETS.size) { i -> val p = ColorEngine.PRESETS[i]; val active = activeIdx == i
@@ -602,9 +730,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: SPEED + FREEZE FRAME                    ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelSpeed(speed: Float, keepP: Boolean, onSpeed: (Float)->Unit, onPitch: (Boolean)->Unit, onFreezeFrame: ()->Unit) {
         Column { Text("SPEED RAMPING", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { val speeds = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f)
@@ -620,9 +745,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: TEXT (Full Styling)                      ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelText(text: String, size: Float, bold: Boolean, color: Color, hasBg: Boolean, bgColor: Color, hasStroke: Boolean, strokeColor: Color, strokeW: Float, hasShadow: Boolean,
                               onText: (String)->Unit, onSize: (Float)->Unit, onBold: (Boolean)->Unit, onColor: (Color)->Unit, onBgToggle: (Boolean)->Unit, onBgColor: (Color)->Unit,
                               onStrokeToggle: (Boolean)->Unit, onStrokeColor: (Color)->Unit, onStrokeW: (Float)->Unit, onShadowToggle: (Boolean)->Unit) {
@@ -631,22 +753,17 @@ class ProStudioActivity : ComponentActivity() {
             OutlinedTextField(value = text, onValueChange = onText, modifier = Modifier.fillMaxWidth().height(46.dp), placeholder = { Text("Ketik teks...", color = Color.Gray, fontSize = 11.sp) },
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ac, unfocusedBorderColor = Lt, cursorColor = Ac, focusedTextColor = Wh, unfocusedTextColor = Wh), singleLine = true, shape = RoundedCornerShape(4.dp))
             Spacer(Modifier.height(4.dp))
-            // Quick inserts
             LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { val q = listOf("OMNIX", "SUBSCRIBE", "FOLLOW", "VIRAL", "POV:", "GRWM", "❤️", "🔥")
                 items(q) { t -> OutlinedButton(onClick = { onText(t) }, shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, Lt), colors = ButtonDefaults.outlinedButtonColors(contentColor = Wh), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp), modifier = Modifier.height(24.dp)) { Text(t, fontSize = 8.sp, fontWeight = FontWeight.Bold) } } }
             Spacer(Modifier.height(4.dp))
-            // Size + Bold
             Row(verticalAlignment = Alignment.CenterVertically) { Text("SIZE", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(32.dp))
                 Slider(value = size, onValueChange = onSize, valueRange = 12f..80f, modifier = Modifier.weight(1f).height(18.dp), colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac, inactiveTrackColor = Lt))
-                Text("${size.toInt()}", color = Wh, fontSize = 8.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(20.dp))
-                ToggleChip("B", bold) { onBold(!bold) }
+                Text("${size.toInt()}", color = Wh, fontSize = 8.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(20.dp)); ToggleChip("B", bold) { onBold(!bold) }
             }
-            // Text color picker
             Text("COLOR", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace); Spacer(Modifier.height(2.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { val colors = listOf(Wh, Rd, Ac, Yw, Cy, Color.Blue, Color.Magenta, Color(0xFFFF6D00), Bk)
                 items(colors) { c -> Box(Modifier.size(22.dp).background(c, RoundedCornerShape(3.dp)).border(2.dp, if (c == color) Wh else Color.Transparent, RoundedCornerShape(3.dp)).clickable { onColor(c) }) } }
             Spacer(Modifier.height(4.dp))
-            // Style toggles
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ToggleChip("BG", hasBg) { onBgToggle(!hasBg) }; ToggleChip("STROKE", hasStroke) { onStrokeToggle(!hasStroke) }; ToggleChip("SHADOW", hasShadow) { onShadowToggle(!hasShadow) }
                 if (text.isNotEmpty()) TextButton(onClick = { onText("") }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(22.dp)) { Text("CLEAR", color = Rd, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
@@ -655,9 +772,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: DRAW (Pen/Eraser/Shapes + Undo/Redo)    ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelDraw(actions: SnapshotStateList<DrawAction>, redoStack: SnapshotStateList<DrawAction>, color: Color, width: Float, tool: DrawToolType,
                               onColor: (Color)->Unit, onWidth: (Float)->Unit, onTool: (DrawToolType)->Unit, onUndo: ()->Unit, onRedo: ()->Unit, onClear: ()->Unit) {
         Column {
@@ -668,7 +782,6 @@ class ProStudioActivity : ComponentActivity() {
                     TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.height(24.dp)) { Text("CLR", color = Rd, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
                 }
             }
-            // Tool selector
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DrawToolType.values().forEach { t -> val a = tool == t
                     Button(onClick = { onTool(t) }, shape = RoundedCornerShape(4.dp), Modifier.height(28.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -676,17 +789,12 @@ class ProStudioActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(4.dp))
-            // Color picker
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { val colors = listOf(Rd, Ac, Yw, Cy, Wh, Color.Blue, Color.Magenta, Color(0xFFFF6D00))
                 items(colors) { c -> Box(Modifier.size(22.dp).background(c, RoundedCornerShape(3.dp)).border(2.dp, if (c == color) Wh else Color.Transparent, RoundedCornerShape(3.dp)).clickable { onColor(c) }) } }
             Spacer(Modifier.height(4.dp)); Sld("SIZE", width, 2f, 30f, onWidth)
-            Text("${actions.size} actions | ${redoStack.size} redo", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: AUDIO (Volume/Mute/Fade/Extract)        ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelAudio(vol: Float, muted: Boolean, fadeIn: Float, fadeOut: Float, onVolume: (Float)->Unit, onMute: (Boolean)->Unit, onFadeIn: (Float)->Unit, onFadeOut: (Float)->Unit, onExtract: ()->Unit) {
         Column {
             Text("AUDIO CONTROLS", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
@@ -703,9 +811,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: CROP (Rotate/Flip/Ratio)                ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelCrop(rot: Float, fH: Boolean, fV: Boolean, onRotate: (Float)->Unit, onFlipH: ()->Unit, onFlipV: ()->Unit, onReset: ()->Unit, onCropRatio: (Float, Float)->Unit) {
         Column {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("TRANSFORM & CROP", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); TextButton(onClick = onReset, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(22.dp)) { Text("RESET", color = Rd, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
@@ -724,9 +829,6 @@ class ProStudioActivity : ComponentActivity() {
         }
     }
 
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              PANEL: AI (Coming Soon)                        ║
-    // ╚══════════════════════════════════════════════════════════════╝
     @Composable fun PanelAi(onFeature: (String)->Unit) {
         Column { Text("AI SUPERPOWERS", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) { data class Ai(val n: String, val i: ImageVector, val d: String)
@@ -740,10 +842,6 @@ class ProStudioActivity : ComponentActivity() {
             Spacer(Modifier.height(6.dp)); Text("PRO AI — COMING SOON", color = Yw, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
     }
-
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║              UTILITY COMPOSABLES                            ║
-    // ╚══════════════════════════════════════════════════════════════╝
 
     @Composable fun Sld(label: String, value: Float, min: Float, max: Float, onChange: (Float)->Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(26.dp)) {
@@ -792,7 +890,6 @@ class ProStudioActivity : ComponentActivity() {
                 onDragEnd = { if (currentPoints.size > 1) { actions.add(DrawAction(currentPoints.toList(), brushColor, brushWidth, tool)); redoStack.clear() }; currentPoints = emptyList() }
             )
         }) {
-            // Live preview of current stroke/shape
             when (tool) {
                 DrawToolType.PEN, DrawToolType.ERASER -> { val c = if (tool == DrawToolType.ERASER) Bk else brushColor; val w = if (tool == DrawToolType.ERASER) brushWidth * 3 else brushWidth
                     for (i in 0 until currentPoints.size - 1) drawLine(c, currentPoints[i], currentPoints[i+1], strokeWidth = w, cap = StrokeCap.Round) }
