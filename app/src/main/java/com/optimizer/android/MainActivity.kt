@@ -170,7 +170,9 @@ class MainActivity : ComponentActivity() {
         var showHibernationDialog by remember { mutableStateOf(false) }
         var showBlackholeDialog by remember { mutableStateOf(false) }
 
-        Column(modifier = Modifier.padding(16.dp)) {
+        val scrollState = androidx.compose.foundation.rememberScrollState()
+
+        Column(modifier = Modifier.padding(16.dp).androidx.compose.foundation.verticalScroll(scrollState)) {
             Text("LITE BOOST", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("NO ROOT REQUIRED.", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
             
@@ -238,7 +240,8 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
+                    .height(200.dp)
                     .background(PitchBlack)
                     .border(2.dp, CrispWhite, RoundedCornerShape(0.dp))
                     .padding(12.dp)
@@ -249,6 +252,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // --- LICENSE & CREDITS ---
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(0.dp),
+                border = BorderStroke(2.dp, CrispWhite),
+                colors = CardDefaults.outlinedCardColors(containerColor = PitchBlack)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("LICENSE & COPYRIGHT", fontWeight = FontWeight.Black, fontSize = 14.sp, color = CrispWhite, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "© 2026 vickymosafan. All Rights Reserved.\n\n" +
+                               "This software (Lite Boost) and its God-Tier Superpowers (Work Profile Engine, Anti-Delete Vault, DNS Web Shield, iClone Pro Camera, Pro Studio AI) are the exclusive intellectual property of vickymosafan.\n\n" +
+                               "Unauthorized copying, modification, distribution, or use of this software without explicit permission is strictly prohibited.",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = Color.Gray,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // --- DIALOGS ---
