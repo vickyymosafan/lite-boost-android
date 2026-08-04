@@ -18,9 +18,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,6 +102,7 @@ class MainActivity : ComponentActivity() {
         val coroutineScope = rememberCoroutineScope()
         var storageStat by remember { mutableStateOf(OptimizerUtils.getStorageStatus()) }
         var ramStat by remember { mutableStateOf(OptimizerUtils.getRamStatus(this@MainActivity)) }
+        var batteryStat by remember { mutableStateOf(OptimizerUtils.getBatteryStatus(this@MainActivity)) }
         
         // State for Junk Cleaner
         var isScanning by remember { mutableStateOf(false) }
@@ -123,6 +127,23 @@ class MainActivity : ComponentActivity() {
                     title = "Sisa RAM",
                     value = "${ramStat.freeMb} MB",
                     icon = Icons.Filled.Memory
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Suhu Baterai",
+                    value = "${batteryStat.tempCelsius} °C",
+                    icon = Icons.Filled.Thermostat,
+                    alert = batteryStat.tempCelsius > 40f
+                )
+                StatusCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Kesehatan",
+                    value = batteryStat.healthString,
+                    icon = if (batteryStat.healthString == "Good") Icons.Filled.BatteryStd else Icons.Filled.BatteryAlert,
+                    alert = batteryStat.healthString != "Good"
                 )
             }
             
@@ -217,16 +238,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun StatusCard(modifier: Modifier = Modifier, title: String, value: String, icon: ImageVector) {
+    fun StatusCard(modifier: Modifier = Modifier, title: String, value: String, icon: ImageVector, alert: Boolean = false) {
         Card(
             modifier = modifier,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            colors = CardDefaults.cardColors(containerColor = if (alert) Color(0xFF330000) else MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(icon, contentDescription = null, tint = if (alert) Color.Red else MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(title, style = MaterialTheme.typography.labelMedium)
-                Text(value, style = MaterialTheme.typography.titleLarge)
+                Text(title, style = MaterialTheme.typography.labelMedium, color = if (alert) Color.Red else Color.Unspecified)
+                Text(value, style = MaterialTheme.typography.titleLarge, color = if (alert) Color.Red else Color.Unspecified)
             }
         }
     }

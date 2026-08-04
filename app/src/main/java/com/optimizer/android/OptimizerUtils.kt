@@ -14,6 +14,28 @@ object OptimizerUtils {
     
     data class StorageStatus(val freeMb: Long, val totalMb: Long)
     data class RamStatus(val freeMb: Long, val totalMb: Long)
+    data class BatteryStatus(val tempCelsius: Float, val healthString: String)
+
+    fun getBatteryStatus(context: Context): BatteryStatus {
+        val intent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        if (intent == null) return BatteryStatus(0f, "Unknown")
+        
+        val temp = intent.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0)
+        val tempCelsius = temp / 10.0f
+        
+        val health = intent.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
+        val healthString = when (health) {
+            android.os.BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+            android.os.BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+            android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+            android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+            android.os.BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
+            android.os.BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+            else -> "Unknown"
+        }
+        
+        return BatteryStatus(tempCelsius, healthString)
+    }
 
     fun getStorageStatus(): StorageStatus {
         val path = Environment.getDataDirectory()
