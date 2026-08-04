@@ -5,6 +5,8 @@
     <!-- Permissions for Android 9 Junk Cleaner -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
     
     <!-- Permissions for Fast Reboot / Speed Up -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
@@ -28,6 +30,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity android:name=".ProCameraActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
 
         <service
             android:name=".LocalFirewallService"

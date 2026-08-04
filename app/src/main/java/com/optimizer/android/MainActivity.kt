@@ -19,9 +19,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Lock
@@ -206,6 +206,20 @@ class MainActivity : ComponentActivity() {
                 title = "DNS-LEVEL WEB SHIELD",
                 icon = Icons.Filled.CloudOff,
                 onClick = { showVpnDialog = true } // Menggunakan dialog 1 untuk ini
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // --- PRO FEATURES ---
+            Text("PRO FEATURES", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SuperpowerCard(
+                title = "iCLONE PRO CAMERA",
+                icon = Icons.Filled.CameraAlt,
+                onClick = { 
+                    startActivity(Intent(this@MainActivity, ProCameraActivity::class.java))
+                }
             )
             
             Spacer(modifier = Modifier.height(24.dp))

@@ -9,6 +9,7 @@ Sebuah aplikasi utilitas Android super ringan, bergaya **Gen-Z Neo-Brutalism**, 
 - [x] **Work Profile Engine (Dual Space)** (Creates a managed isolated space to clone apps)
 - [x] **Anti-Delete Message Vault** (Intercepts and saves all notifications, including deleted WhatsApp messages)
 - [x] **DNS-Level Web Shield** (Uses a local VPN to route DNS queries to AdGuard, blocking ads system-wide)
+- [x] **iClone Pro Camera (Cinematic Engine)** (Uses CameraX API & OEM Extensions to force Hardware HDR and Zero Shutter Lag, mimicking iPhone camera clarity)
 - [x] **Junk Cleaner (Transparansi Data 2-Tahap)**: 
     - **Tahap 1 (Scan):** Memindai seluruh folder penyimpanan untuk mendata file sampah tanpa menghapusnya terlebih dahulu. File penting Anda 100% aman.
     - **Tahap 2 (Review & Hapus):** Menampilkan *log* daftar file kotor secara transparan, memberikan Anda kendali penuh.
