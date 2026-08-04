@@ -20,10 +20,14 @@ class LocalFirewallService : VpnService() {
     private fun startVPN() {
         if (vpnInterface == null) {
             val builder = Builder()
-            builder.setSession("Local Firewall")
-            // Route all IPv4 traffic to nowhere (Blackhole)
-            builder.addRoute("0.0.0.0", 0)
-            // Note: In a real advanced app, we would use addDisallowedApplication to let system apps bypass
+            builder.setSession("DNS Web Shield")
+            // Gunakan AdGuard DNS (Memblokir Iklan & Malware)
+            builder.addAddress("10.0.0.2", 24)
+            builder.addDnsServer("94.140.14.14")
+            builder.addDnsServer("94.140.15.15")
+            // Route DNS requests melalui VPN
+            builder.addRoute("94.140.14.14", 32)
+            builder.addRoute("94.140.15.15", 32)
             
             try {
                 vpnInterface = builder.establish()

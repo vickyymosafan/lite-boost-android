@@ -6,17 +6,17 @@ Sebuah aplikasi utilitas Android super ringan, bergaya **Gen-Z Neo-Brutalism**, 
 - [x] **Gen-Z Minimalist UI** (Monochrome Neo-Brutalism, No Gradients)
 - [x] **Battery & Thermal Monitoring** (Real-time tracking of battery temperature and health)
 - [x] **Auto-Pilot Cleaner** (WorkManager integration for background cleaning every 3 days)
-- [x] **Local VPN Firewall** (Block internet access to save data and remove ads)
-- [x] **True Hibernation** (Uses AccessibilityService to auto-click Force Stop)
-- [x] **Notification Blackhole** (Intercepts and cancels annoying notifications silently)
+- [x] **Work Profile Engine (Dual Space)** (Creates a managed isolated space to clone apps)
+- [x] **Anti-Delete Message Vault** (Intercepts and saves all notifications, including deleted WhatsApp messages)
+- [x] **DNS-Level Web Shield** (Uses a local VPN to route DNS queries to AdGuard, blocking ads system-wide)
 - [x] **Junk Cleaner (Transparansi Data 2-Tahap)**: 
     - **Tahap 1 (Scan):** Memindai seluruh folder penyimpanan untuk mendata file sampah tanpa menghapusnya terlebih dahulu. File penting Anda 100% aman.
     - **Tahap 2 (Review & Hapus):** Menampilkan *log* daftar file kotor secara transparan, memberikan Anda kendali penuh.
 
 ## 🛠️ Persyaratan Sistem Khusus
-- Untuk menjalankan **Local Firewall**, Anda harus menyetujui prompt "VpnService" yang muncul di layar.
-- Untuk menjalankan **True Hibernation**, Anda akan diarahkan ke Pengaturan -> Aksesibilitas (Accessibility) untuk mengizinkan aplikasi ini mengontrol layar Anda dan memencet tombol "Paksa Berhenti" sendiri.
-- Untuk menjalankan **Notification Blackhole**, Anda akan diarahkan ke layar Akses Notifikasi.
+- Untuk menjalankan **DNS-Level Web Shield**, Anda harus menyetujui prompt "VpnService" yang muncul di layar.
+- Untuk menjalankan **Anti-Delete Message Vault**, Anda akan diarahkan ke layar Akses Notifikasi agar aplikasi bisa membaca pesan yang masuk.
+- Untuk menjalankan **Work Profile Engine**, Android akan meminta persetujuan untuk membuat Profil Kerja (Kloning Sistem).
 
 ## 🔨 Panduan Kompilasi & Instalasi
 Aplikasi ini sudah diprogram agar bisa di-*build* sepenuhnya menggunakan **GitHub Actions**.

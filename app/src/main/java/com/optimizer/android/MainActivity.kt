@@ -22,8 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryStd
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Thermostat
@@ -131,6 +133,25 @@ class MainActivity : ComponentActivity() {
         logs.add("REQUESTING NOTIFICATION LISTENER...")
         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
+    
+    private fun requestWorkProfile() {
+        logs.add("PROVISIONING WORK PROFILE...")
+        try {
+            val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
+            intent.putExtra(
+                android.app.admin.DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME,
+                android.content.ComponentName(this, WorkProfileReceiver::class.java)
+            )
+            startActivity(intent)
+        } catch (e: Exception) {
+            logs.add("FAILED: Work Profile not supported.")
+        }
+    }
+    
+    private fun readVault(): String {
+        val file = File(filesDir, "vault.txt")
+        return if (file.exists()) file.readText() else "VAULT IS EMPTY."
+    }
 
     @Composable
     fun OptimizerDashboard(consoleLogs: List<String>) {
@@ -172,19 +193,19 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.height(8.dp))
 
             SuperpowerCard(
-                title = "LOCAL FIREWALL",
-                icon = Icons.Filled.VpnLock,
-                onClick = { showVpnDialog = true }
+                title = "WORK PROFILE ENGINE",
+                icon = Icons.Filled.FolderSpecial,
+                onClick = { showHibernationDialog = true } // Menggunakan dialog 2 untuk ini
             )
             SuperpowerCard(
-                title = "TRUE HIBERNATION",
-                icon = Icons.Filled.Memory,
-                onClick = { showHibernationDialog = true }
+                title = "ANTI-DELETE MESSAGE VAULT",
+                icon = Icons.Filled.Message,
+                onClick = { showBlackholeDialog = true } // Menggunakan dialog 3 untuk ini
             )
             SuperpowerCard(
-                title = "NOTIFICATION BLACKHOLE",
-                icon = Icons.Filled.NotificationsOff,
-                onClick = { showBlackholeDialog = true }
+                title = "DNS-LEVEL WEB SHIELD",
+                icon = Icons.Filled.CloudOff,
+                onClick = { showVpnDialog = true } // Menggunakan dialog 1 untuk ini
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -210,8 +231,8 @@ class MainActivity : ComponentActivity() {
         // --- DIALOGS ---
         if (showVpnDialog) {
             NeoDialog(
-                title = "ENABLE FIREWALL?",
-                text = "Ini akan memblokir akses internet menggunakan VPN Lokal.",
+                title = "ENABLE DNS SHIELD?",
+                text = "Mengalihkan koneksi Anda melalui AdGuard/Cloudflare DNS untuk memblokir Iklan dan Malware.",
                 onConfirm = { 
                     showVpnDialog = false
                     requestVpn() 
@@ -221,24 +242,51 @@ class MainActivity : ComponentActivity() {
         }
         if (showHibernationDialog) {
             NeoDialog(
-                title = "TRUE HIBERNATION?",
-                text = "Layar Anda akan diambil alih sesaat untuk mematikan paksa (Force Stop) seluruh aplikasi.",
+                title = "CREATE WORK PROFILE?",
+                text = "Sistem akan membuat ruang ganda terpisah untuk mengkloning aplikasi.",
                 onConfirm = { 
                     showHibernationDialog = false
-                    requestAccessibility() 
+                    requestWorkProfile()
                 },
                 onDismiss = { showHibernationDialog = false }
             )
         }
         if (showBlackholeDialog) {
-            NeoDialog(
-                title = "ENABLE BLACKHOLE?",
-                text = "Semua notifikasi masuk akan ditelan dan disembunyikan. HP Anda akan sunyi.",
-                onConfirm = { 
-                    showBlackholeDialog = false
-                    requestNotificationAccess() 
+            var vaultContent by remember { mutableStateOf(readVault()) }
+            AlertDialog(
+                onDismissRequest = { showBlackholeDialog = false },
+                shape = RoundedCornerShape(0.dp),
+                containerColor = PitchBlack,
+                title = { Text("ANTI-DELETE VAULT", fontWeight = FontWeight.Black, color = CrispWhite) },
+                text = {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        item {
+                            Text(vaultContent, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = CrispWhite)
+                        }
+                    }
                 },
-                onDismiss = { showBlackholeDialog = false }
+                confirmButton = {
+                    Button(
+                        onClick = { 
+                            showBlackholeDialog = false
+                            requestNotificationAccess() 
+                        },
+                        shape = RoundedCornerShape(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CrispWhite, contentColor = PitchBlack)
+                    ) {
+                        Text("ENABLE INTERCEPTOR", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { showBlackholeDialog = false },
+                        shape = RoundedCornerShape(0.dp),
+                        border = BorderStroke(2.dp, CrispWhite),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)
+                    ) {
+                        Text("TUTUP", fontWeight = FontWeight.Bold)
+                    }
+                }
             )
         }
     }
