@@ -12,7 +12,7 @@ class WorkProfileReceiver : DeviceAdminReceiver() {
         
         // Mengaktifkan profil setelah selesai
         val manager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
-        val componentName = getComponentName(context)
+        val componentName = android.content.ComponentName(context, WorkProfileReceiver::class.java)
         manager.setProfileEnabled(componentName)
     }
 }

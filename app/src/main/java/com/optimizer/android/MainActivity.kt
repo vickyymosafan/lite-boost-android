@@ -18,7 +18,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CameraAlt
@@ -154,6 +157,7 @@ class MainActivity : ComponentActivity() {
         return if (file.exists()) file.readText() else "VAULT IS EMPTY."
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun OptimizerDashboard(consoleLogs: List<String>) {
         val coroutineScope = rememberCoroutineScope()
@@ -170,9 +174,12 @@ class MainActivity : ComponentActivity() {
         var showHibernationDialog by remember { mutableStateOf(false) }
         var showBlackholeDialog by remember { mutableStateOf(false) }
 
-        val scrollState = androidx.compose.foundation.rememberScrollState()
+        val scrollState = rememberScrollState()
 
-        Column(modifier = Modifier.padding(16.dp).androidx.compose.foundation.verticalScroll(scrollState)) {
+        Column(modifier = Modifier
+            .padding(16.dp)
+            .verticalScroll(scrollState)
+        ) {
             Text("LITE BOOST", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("NO ROOT REQUIRED.", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
             
