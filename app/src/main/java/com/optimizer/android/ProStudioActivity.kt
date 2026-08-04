@@ -16,7 +16,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -30,9 +42,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -523,17 +537,17 @@ class ProStudioActivity : ComponentActivity() {
         // ═══ LAYOUT ═══
         Column(modifier = Modifier.fillMaxSize().background(Bk)) {
             // TOP BAR
-            Row(Modifier.fillMaxWidth().background(Dk).padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(Md).padding(bottom = 1.dp).background(Dk).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { finish() }, Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null, tint = Wh, modifier = Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(6.dp)); Text("OMNIX STUDIO", color = Wh, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 1.sp)
+                    IconButton(onClick = { finish() }, Modifier.size(36.dp)) { Icon(Icons.Filled.ArrowBack, null, tint = Wh, modifier = Modifier.size(20.dp)) }
+                    Spacer(Modifier.width(8.dp)); Text("OMNIX STUDIO", color = Wh, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 1.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MiniBtn("VID", Icons.Filled.Videocam) { videoLauncher.launch("video/*") }
-                    MiniBtn("PIC", Icons.Filled.Image) { imageLauncher.launch("image/*") }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = { videoLauncher.launch("video/*") }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = Md, contentColor = Wh), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Icon(Icons.Filled.Videocam, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("VID", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                    Button(onClick = { imageLauncher.launch("image/*") }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = Md, contentColor = Wh), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Icon(Icons.Filled.Image, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("PIC", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
                     Box {
-                        OutlinedButton(onClick = { expMenuOpen = true }, shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, Cy), colors = ButtonDefaults.outlinedButtonColors(contentColor = Cy), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp), modifier = Modifier.height(26.dp)) {
-                            Text("${expQuality.label} | ${expFps.label}", fontSize = 8.sp, fontWeight = FontWeight.Bold); Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(12.dp))
+                        OutlinedButton(onClick = { expMenuOpen = true }, shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, Cy), colors = ButtonDefaults.outlinedButtonColors(contentColor = Cy), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp), modifier = Modifier.height(36.dp)) {
+                            Text("${expQuality.label} | ${expFps.label}", fontSize = 9.sp, fontWeight = FontWeight.Bold); Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp))
                         }
                         DropdownMenu(expanded = expMenuOpen, onDismissRequest = { expMenuOpen = false }, modifier = Modifier.background(Md)) {
                             listOf(ExportQuality("480p", 480), ExportQuality("720p", 720), ExportQuality("1080p", 1080)).forEach { q ->
@@ -544,7 +558,7 @@ class ProStudioActivity : ComponentActivity() {
                             }
                         }
                     }
-                    MiniBtn("EXPORT", Icons.Filled.FileDownload, true) {
+                    Button(onClick = {
                         when {
                             selectedUri == null -> Toast.makeText(context, "Pilih media dulu!", Toast.LENGTH_SHORT).show()
                             mediaType == "video" -> { statusLog = "EXPORTING..."
@@ -559,7 +573,7 @@ class ProStudioActivity : ComponentActivity() {
                                 exportPhoto(photoBitmap!!) { statusLog = "SAVED: $it"; Toast.makeText(context, "Photo saved!", Toast.LENGTH_LONG).show() }
                             }
                         }
-                    }
+                    }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = Ac, contentColor = Bk), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Icon(Icons.Filled.FileDownload, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("EXPORT", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
                 }
             }
 
@@ -597,10 +611,17 @@ class ProStudioActivity : ComponentActivity() {
                             Text(textOverlay, color = textColor, fontSize = textSize.sp, fontWeight = if (textBold) FontWeight.Black else FontWeight.Normal, modifier = bgMod, textAlign = TextAlign.Center)
                         }
                     }
-                    if (activeFilterIdx > 0) { Box(Modifier.align(Alignment.TopStart).padding(8.dp).background(Ac, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(ColorEngine.PRESETS[activeFilterIdx].name, color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
+                    AnimatedVisibility(visible = activeFilterIdx > 0, enter = fadeIn() + slideInHorizontally(), exit = fadeOut() + slideOutHorizontally(), modifier = Modifier.align(Alignment.TopStart)) { Box(Modifier.padding(8.dp).background(Ac, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(ColorEngine.PRESETS[activeFilterIdx].name, color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
                 } else {
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Icon(Icons.Filled.AddPhotoAlternate, null, tint = Lt, modifier = Modifier.size(56.dp)); Spacer(Modifier.height(12.dp))
+                        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                        val alpha by infiniteTransition.animateFloat(
+                            initialValue = 0.4f,
+                            targetValue = 1.0f,
+                            animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
+                            label = "icon pulse"
+                        )
+                        Icon(Icons.Filled.AddPhotoAlternate, null, tint = Lt.copy(alpha = alpha), modifier = Modifier.size(64.dp)); Spacer(Modifier.height(12.dp))
                         Text("OMNIX STUDIO", color = Wh, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
                         Text("Pilih video atau foto untuk mulai", color = Color.Gray, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
@@ -612,7 +633,7 @@ class ProStudioActivity : ComponentActivity() {
                 Row(Modifier.fillMaxWidth().background(Dk).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(fmtTime(currentPositionMs), color = Ac, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer?.let { if (it.isPlaying) { it.pause(); isPlaying = false } else { it.play(); isPlaying = true } } }, Modifier.size(36.dp)) { Icon(if (isPlaying) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle, null, tint = Ac, modifier = Modifier.size(28.dp)) }
+                        IconButton(onClick = { exoPlayer?.let { if (it.isPlaying) { it.pause(); isPlaying = false } else { it.play(); isPlaying = true } } }, Modifier.size(44.dp)) { Icon(if (isPlaying) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle, null, tint = Ac, modifier = Modifier.size(32.dp)) }
                     }
                     Text(fmtTime(durationMs), color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
@@ -624,7 +645,7 @@ class ProStudioActivity : ComponentActivity() {
                         val sMs = (range.start * durationMs).toLong()
                         exoPlayer?.seekTo(sMs); currentPositionMs = sMs
                     },
-                    modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 12.dp),
+                    modifier = Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 12.dp, vertical = 4.dp),
                     colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac.copy(alpha=0.6f), inactiveTrackColor = Lt)
                 )
             }
@@ -633,35 +654,39 @@ class ProStudioActivity : ComponentActivity() {
             Box(Modifier.fillMaxWidth().background(Dk).padding(horizontal = 12.dp, vertical = 4.dp)) { Text("> $statusLog", color = Ac, fontSize = 9.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 
             // TOOL PANEL
-            Box(Modifier.fillMaxWidth().height(175.dp).background(Dk).padding(8.dp)) {
-                when (currentTab) {
-                    0 -> PanelEdit(brightness, contrast, saturation, temperature, tint, exposure, highlights, shadows, fade, sharpness, vignette, grain,
-                        onB = { brightness = it; statusLog = "BRIGHTNESS: ${(it*100).toInt()}%" }, onC = { contrast = it }, onS = { saturation = it },
-                        onTemp = { temperature = it }, onTint = { tint = it }, onExp = { exposure = it },
-                        onHi = { highlights = it }, onSh = { shadows = it }, onFd = { fade = it },
-                        onSharp = { sharpness = it }, onVig = { vignette = it }, onGrain = { grain = it },
-                        onReset = { brightness=0f; contrast=1f; saturation=1f; temperature=0f; tint=0f; exposure=0f; highlights=0f; shadows=0f; fade=0f; sharpness=0f; vignette=0f; grain=0f; activeFilterIdx=0 })
-                    1 -> PanelFilter(activeFilterIdx, filterIntensity, onSelect = { activeFilterIdx = it }, onIntensity = { filterIntensity = it })
-                    2 -> PanelSpeed(playbackSpeed, keepPitch, onSpeed = { playbackSpeed = it; exoPlayer?.playbackParameters = PlaybackParameters(it, if (keepPitch) 1f else it) }, onPitch = { keepPitch = it; exoPlayer?.playbackParameters = PlaybackParameters(playbackSpeed, if (it) 1f else playbackSpeed) },
-                        onFreezeFrame = { if (selectedUri != null && mediaType == "video") { viewModel.captureFrame(context, selectedUri!!, currentPositionMs) { bmp -> photoBitmap = bmp; mediaType = "image"; statusLog = "FREEZE FRAME CAPTURED" } } else statusLog = "LOAD VIDEO FIRST" })
-                    3 -> PanelText(textOverlay, textSize, textBold, textColor, textHasBg, textBgColor, textHasStroke, textStrokeColor, textStrokeWidth, textHasShadow,
-                        onText = { textOverlay = it }, onSize = { textSize = it }, onBold = { textBold = it }, onColor = { textColor = it }, onBgToggle = { textHasBg = it }, onBgColor = { textBgColor = it }, onStrokeToggle = { textHasStroke = it }, onStrokeColor = { textStrokeColor = it }, onStrokeW = { textStrokeWidth = it }, onShadowToggle = { textHasShadow = it })
-                    4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it }, onTool = { drawTool = it },
-                        onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()) } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()) } }, onClear = { drawActions.clear(); redoStack.clear() })
-                    5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it }, onMute = { isMuted = it }, onFadeIn = { fadeInSec = it }, onFadeOut = { fadeOutSec = it },
-                        onExtract = { if (selectedUri != null && mediaType == "video") { viewModel.extractAudio(context, selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
-                    6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
-                        onReset = { rotation = 0f; flipH = false; flipV = false },
-                        onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } })
-                    7 -> PanelAi { statusLog = "$it — COMING SOON" }
+            Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 220.dp).animateContentSize().background(Dk).padding(8.dp)) {
+                Crossfade(targetState = currentTab, label = "panel") { tab ->
+                    when (tab) {
+                        0 -> PanelEdit(brightness, contrast, saturation, temperature, tint, exposure, highlights, shadows, fade, sharpness, vignette, grain,
+                            onB = { brightness = it; statusLog = "BRIGHTNESS: ${(it*100).toInt()}%" }, onC = { contrast = it }, onS = { saturation = it },
+                            onTemp = { temperature = it }, onTint = { tint = it }, onExp = { exposure = it },
+                            onHi = { highlights = it }, onSh = { shadows = it }, onFd = { fade = it },
+                            onSharp = { sharpness = it }, onVig = { vignette = it }, onGrain = { grain = it },
+                            onReset = { brightness=0f; contrast=1f; saturation=1f; temperature=0f; tint=0f; exposure=0f; highlights=0f; shadows=0f; fade=0f; sharpness=0f; vignette=0f; grain=0f; activeFilterIdx=0 })
+                        1 -> PanelFilter(activeFilterIdx, filterIntensity, onSelect = { activeFilterIdx = it }, onIntensity = { filterIntensity = it })
+                        2 -> PanelSpeed(playbackSpeed, keepPitch, onSpeed = { playbackSpeed = it; exoPlayer?.playbackParameters = PlaybackParameters(it, if (keepPitch) 1f else it) }, onPitch = { keepPitch = it; exoPlayer?.playbackParameters = PlaybackParameters(playbackSpeed, if (it) 1f else playbackSpeed) },
+                            onFreezeFrame = { if (selectedUri != null && mediaType == "video") { viewModel.captureFrame(context, selectedUri!!, currentPositionMs) { bmp -> photoBitmap = bmp; mediaType = "image"; statusLog = "FREEZE FRAME CAPTURED" } } else statusLog = "LOAD VIDEO FIRST" })
+                        3 -> PanelText(textOverlay, textSize, textBold, textColor, textHasBg, textBgColor, textHasStroke, textStrokeColor, textStrokeWidth, textHasShadow,
+                            onText = { textOverlay = it }, onSize = { textSize = it }, onBold = { textBold = it }, onColor = { textColor = it }, onBgToggle = { textHasBg = it }, onBgColor = { textBgColor = it }, onStrokeToggle = { textHasStroke = it }, onStrokeColor = { textStrokeColor = it }, onStrokeW = { textStrokeWidth = it }, onShadowToggle = { textHasShadow = it })
+                        4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it }, onTool = { drawTool = it },
+                            onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()) } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()) } }, onClear = { drawActions.clear(); redoStack.clear() })
+                        5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it }, onMute = { isMuted = it }, onFadeIn = { fadeInSec = it }, onFadeOut = { fadeOutSec = it },
+                            onExtract = { if (selectedUri != null && mediaType == "video") { viewModel.extractAudio(context, selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
+                        6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
+                            onReset = { rotation = 0f; flipH = false; flipV = false },
+                            onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } })
+                        7 -> PanelAi { statusLog = "$it — COMING SOON" }
+                    }
                 }
             }
 
             // BOTTOM TAB BAR
             Row(Modifier.fillMaxWidth().background(Bk).border(BorderStroke(1.dp, Md)).padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 tabs.forEachIndexed { i, tab -> val active = currentTab == i; val clr by animateColorAsState(if (active) Ac else Color.Gray, label = "t$i")
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { currentTab = i }.padding(horizontal = 3.dp, vertical = 2.dp)) {
-                        Icon(tab.icon, null, tint = clr, modifier = Modifier.size(17.dp)); Text(tab.name, color = clr, fontSize = 7.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { currentTab = i }.defaultMinSize(minWidth = 44.dp, minHeight = 44.dp).padding(horizontal = 3.dp, vertical = 4.dp), verticalArrangement = Arrangement.Center) {
+                        Icon(tab.icon, null, tint = clr, modifier = Modifier.size(22.dp)); Spacer(Modifier.height(2.dp)); Text(tab.name, color = clr, fontSize = 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                        Spacer(Modifier.height(4.dp))
+                        Box(Modifier.height(2.dp).width(20.dp).background(if (active) Ac else Color.Transparent, RoundedCornerShape(1.dp)))
                     }
                 }
             }
@@ -808,9 +833,9 @@ class ProStudioActivity : ComponentActivity() {
     }
 
     @Composable fun Sld(label: String, value: Float, min: Float, max: Float, onChange: (Float)->Unit) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(26.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(30.dp)) {
             Text(label, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(80.dp))
-            Slider(value = value, onValueChange = onChange, valueRange = min..max, modifier = Modifier.weight(1f).height(18.dp), colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac, inactiveTrackColor = Lt))
+            Slider(value = value, onValueChange = onChange, valueRange = min..max, modifier = Modifier.weight(1f).height(24.dp), colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac, inactiveTrackColor = Lt))
             Text("${(value * 100).toInt()}", color = Wh, fontSize = 8.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(28.dp), textAlign = TextAlign.End)
         }
     }
