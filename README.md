@@ -10,6 +10,7 @@ Sebuah aplikasi utilitas Android super ringan, bergaya **Gen-Z Neo-Brutalism**, 
 - [x] **Anti-Delete Message Vault** (Intercepts and saves all notifications, including deleted WhatsApp messages)
 - [x] **DNS-Level Web Shield** (Uses a local VPN to route DNS queries to AdGuard, blocking ads system-wide)
 - [x] **iClone Pro Camera (Cinematic Engine)** (Uses CameraX API & OEM Extensions to force Hardware HDR and Zero Shutter Lag, mimicking iPhone camera clarity)
+- [x] **Pro Studio AI (Editor Ultimate Edition)** (Hardware-accelerated 1080p 60fps video editor using Media3 Transformer, featuring mock AI Magic Eraser, Video Matting, and Optical Flow modules)
 - [x] **Junk Cleaner (Transparansi Data 2-Tahap)**: 
     - **Tahap 1 (Scan):** Memindai seluruh folder penyimpanan untuk mendata file sampah tanpa menghapusnya terlebih dahulu. File penting Anda 100% aman.
     - **Tahap 2 (Review & Hapus):** Menampilkan *log* daftar file kotor secara transparan, memberikan Anda kendali penuh.

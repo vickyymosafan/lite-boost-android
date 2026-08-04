@@ -32,6 +32,8 @@
         </activity>
 
         <activity android:name=".ProCameraActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
+        
+        <activity android:name=".ProStudioActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
 
         <service
             android:name=".LocalFirewallService"

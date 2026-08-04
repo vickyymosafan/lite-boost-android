@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.MovieCreation
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Thermostat
@@ -219,6 +220,14 @@ class MainActivity : ComponentActivity() {
                 icon = Icons.Filled.CameraAlt,
                 onClick = { 
                     startActivity(Intent(this@MainActivity, ProCameraActivity::class.java))
+                }
+            )
+            
+            SuperpowerCard(
+                title = "PRO STUDIO AI (EDITOR)",
+                icon = Icons.Filled.MovieCreation,
+                onClick = { 
+                    startActivity(Intent(this@MainActivity, ProStudioActivity::class.java))
                 }
             )
             
