@@ -126,7 +126,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbMatrix
+import androidx.media3.effect.TextureOverlay
+import com.google.common.collect.ImmutableList
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -320,13 +323,13 @@ class ProStudioActivity : ComponentActivity() {
         }
 
         val overlay = object : BitmapOverlay() { override fun getBitmap(timeUs: Long): Bitmap = overlayBmp }
-        videoEffects.add(OverlayEffect(listOf(overlay)))
+        videoEffects.add(OverlayEffect(ImmutableList.of<TextureOverlay>(overlay)))
+        videoEffects.add(Presentation.createForHeight(qualityHeight))
 
         val edited = EditedMediaItem.Builder(mediaItem).setEffects(Effects(emptyList(), videoEffects)).build()
         
         val transformRequest = TransformationRequest.Builder()
             .setVideoMimeType(MimeTypes.VIDEO_H264)
-            .setResolution(qualityHeight)
             // Note: Media3 Transformer currently manages frame rates internally via codec parameters, but we can set constraints if needed
             .build()
 
@@ -405,7 +408,8 @@ class ProStudioActivity : ComponentActivity() {
     // ╔══════════════════════════════════════════════════════════════╗
     // ║              MAIN EDITOR COMPOSABLE                         ║
     // ╚══════════════════════════════════════════════════════════════╝
-    @OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @kotlin.OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun StudioEditorApp() {
         var selectedUri by remember { mutableStateOf<Uri?>(null) }
@@ -733,7 +737,7 @@ class ProStudioActivity : ComponentActivity() {
     @Composable fun PanelSpeed(speed: Float, keepP: Boolean, onSpeed: (Float)->Unit, onPitch: (Boolean)->Unit, onFreezeFrame: ()->Unit) {
         Column { Text("SPEED RAMPING", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { val speeds = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f)
-                items(speeds) { sp -> val a = speed == sp; Button(onClick = { onSpeed(sp) }, shape = RoundedCornerShape(4.dp), Modifier.height(36.dp).width(48.dp), contentPadding = PaddingValues(2.dp),
+                items(speeds) { sp -> val a = speed == sp; Button(onClick = { onSpeed(sp) }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(36.dp).width(48.dp), contentPadding = PaddingValues(2.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = if (a) Ac else Md, contentColor = if (a) Bk else Wh)) { Text("${sp}x", fontSize = 10.sp, fontWeight = FontWeight.Black) } } }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -777,14 +781,14 @@ class ProStudioActivity : ComponentActivity() {
         Column {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("DRAWING", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Row { IconButton(onClick = onUndo, Modifier.size(24.dp)) { Icon(Icons.Filled.Undo, null, tint = Wh, Modifier.size(14.dp)) }
-                    IconButton(onClick = onRedo, Modifier.size(24.dp)) { Icon(Icons.Filled.Redo, null, tint = Wh, Modifier.size(14.dp)) }
+                Row { IconButton(onClick = onUndo, modifier = Modifier.size(24.dp)) { Icon(Icons.Filled.Undo, null, tint = Wh, modifier = Modifier.size(14.dp)) }
+                    IconButton(onClick = onRedo, modifier = Modifier.size(24.dp)) { Icon(Icons.Filled.Redo, null, tint = Wh, modifier = Modifier.size(14.dp)) }
                     TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.height(24.dp)) { Text("CLR", color = Rd, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DrawToolType.values().forEach { t -> val a = tool == t
-                    Button(onClick = { onTool(t) }, shape = RoundedCornerShape(4.dp), Modifier.height(28.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    Button(onClick = { onTool(t) }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(28.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = if (a) Ac else Md, contentColor = if (a) Bk else Wh)) { Text(t.name, fontSize = 7.sp, fontWeight = FontWeight.Bold) }
                 }
             }
@@ -799,14 +803,14 @@ class ProStudioActivity : ComponentActivity() {
         Column {
             Text("AUDIO CONTROLS", color = Wh, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onMute(!muted) }, Modifier.size(28.dp)) { Icon(if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp, null, tint = if (muted) Rd else Ac, Modifier.size(18.dp)) }
+                IconButton(onClick = { onMute(!muted) }, modifier = Modifier.size(28.dp)) { Icon(if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp, null, tint = if (muted) Rd else Ac, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(6.dp)); Slider(value = vol, onValueChange = onVolume, valueRange = 0f..2f, modifier = Modifier.weight(1f).height(22.dp), colors = SliderDefaults.colors(thumbColor = Ac, activeTrackColor = Ac, inactiveTrackColor = Lt), enabled = !muted)
                 Text("${(vol*100).toInt()}%", color = if (muted) Rd else Wh, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
             }
             Sld("FADE IN", fadeIn, 0f, 5f, onFadeIn); Sld("FADE OUT", fadeOut, 0f, 5f, onFadeOut)
             Spacer(Modifier.height(4.dp))
-            Button(onClick = onExtract, shape = RoundedCornerShape(4.dp), Modifier.height(30.dp), colors = ButtonDefaults.buttonColors(containerColor = Md, contentColor = Cy), contentPadding = PaddingValues(horizontal = 10.dp)) {
-                Icon(Icons.Filled.MusicNote, null, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("EXTRACT AUDIO (.m4a)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Button(onClick = onExtract, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(30.dp), colors = ButtonDefaults.buttonColors(containerColor = Md, contentColor = Cy), contentPadding = PaddingValues(horizontal = 10.dp)) {
+                Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("EXTRACT AUDIO (.m4a)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -835,7 +839,7 @@ class ProStudioActivity : ComponentActivity() {
                 val f = listOf(Ai("MAGIC ERASER", Icons.Filled.AutoFixHigh, "Hapus objek"), Ai("BG REMOVER", Icons.Filled.Wallpaper, "Hapus background"), Ai("VIDEO MATTING", Icons.Filled.ContentCut, "Green-screen"),
                     Ai("VOICE ISOLATE", Icons.Filled.GraphicEq, "Buang noise"), Ai("AI SLOW-MO", Icons.Filled.SlowMotionVideo, "1000fps"), Ai("CHROMA KEY", Icons.Filled.FlipCameraAndroid, "Color key"))
                 items(f) { ai -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(68.dp).clickable { onFeature(ai.n) }) {
-                    Box(Modifier.size(40.dp).background(Md, RoundedCornerShape(8.dp)).border(1.dp, Lt, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) { Icon(ai.i, null, tint = Ac, Modifier.size(18.dp)) }
+                    Box(Modifier.size(40.dp).background(Md, RoundedCornerShape(8.dp)).border(1.dp, Lt, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) { Icon(ai.i, null, tint = Ac, modifier = Modifier.size(18.dp)) }
                     Spacer(Modifier.height(3.dp)); Text(ai.n, color = Wh, fontSize = 7.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center, maxLines = 1)
                     Text(ai.d, color = Color.Gray, fontSize = 6.sp, textAlign = TextAlign.Center, maxLines = 1)
                 } } }
@@ -852,18 +856,18 @@ class ProStudioActivity : ComponentActivity() {
     }
 
     @Composable fun MiniBtn(text: String, icon: ImageVector, accent: Boolean = false, onClick: ()->Unit) {
-        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), Modifier.height(26.dp), colors = ButtonDefaults.buttonColors(containerColor = if (accent) Ac else Md, contentColor = if (accent) Bk else Wh), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 1.dp)) {
-            Icon(icon, null, Modifier.size(11.dp)); Spacer(Modifier.width(3.dp)); Text(text, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(26.dp), colors = ButtonDefaults.buttonColors(containerColor = if (accent) Ac else Md, contentColor = if (accent) Bk else Wh), contentPadding = PaddingValues(horizontal = 7.dp, vertical = 1.dp)) {
+            Icon(icon, null, modifier = Modifier.size(11.dp)); Spacer(Modifier.width(3.dp)); Text(text, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
     }
 
     @Composable fun TransformBtn(text: String, active: Boolean = false, onClick: ()->Unit) {
-        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 3.dp),
+        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 3.dp),
             colors = ButtonDefaults.buttonColors(containerColor = if (active) Ac.copy(alpha = 0.2f) else Md, contentColor = if (active) Ac else Wh)) { Text(text, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     }
 
     @Composable fun ToggleChip(text: String, active: Boolean, onClick: ()->Unit) {
-        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), Modifier.height(22.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+        Button(onClick = onClick, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(22.dp), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             colors = ButtonDefaults.buttonColors(containerColor = if (active) Ac else Md, contentColor = if (active) Bk else Wh)) { Text(text, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
     }
 
