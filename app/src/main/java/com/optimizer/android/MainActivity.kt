@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Message
@@ -219,10 +220,17 @@ class MainActivity : ComponentActivity() {
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // --- SUPERPOWERS ---
+            // --- ULTIMATE SUPERPOWERS ---
             Text("ULTIMATE SUPERPOWERS", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
+            SuperpowerCard(
+                title = "DEEP ROOT APP ERASER",
+                icon = Icons.Filled.Delete,
+                onClick = { 
+                    startActivity(Intent(this@MainActivity, AppEraserActivity::class.java))
+                }
+            )
             SuperpowerCard(
                 title = "WORK PROFILE ENGINE",
                 icon = Icons.Filled.FolderSpecial,
