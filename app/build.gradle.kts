@@ -65,6 +65,7 @@ dependencies {
     
     // Media3 (Pro Studio Engine)
     val media3Version = "1.3.0"
+    implementation("androidx.media3:media3-common:$media3Version")
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-transformer:$media3Version")
     implementation("androidx.media3:media3-effect:$media3Version")
