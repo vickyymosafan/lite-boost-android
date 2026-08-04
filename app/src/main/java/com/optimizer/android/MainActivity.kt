@@ -48,7 +48,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.optimizer.android.presentation.AppEraserActivity
 import com.optimizer.android.domain.model.BatteryHealth
 import com.optimizer.android.presentation.MainViewModel

@@ -2,11 +2,13 @@ package com.optimizer.android.data.repository
 
 import com.optimizer.android.domain.model.VpnConfig
 import com.optimizer.android.domain.repository.VpnConfigRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class VpnConfigRepositoryImpl @Inject constructor() : VpnConfigRepository {
     override suspend fun getVpnConfig(): VpnConfig = withContext(Dispatchers.IO) {
-        return@withContext VpnConfig(
+        VpnConfig(
             sessionName = "DNS Web Shield",
             localAddress = "10.0.0.2",
             localPrefixLength = 24,

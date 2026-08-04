@@ -611,7 +611,7 @@ class ProStudioActivity : ComponentActivity() {
                             Text(textOverlay, color = textColor, fontSize = textSize.sp, fontWeight = if (textBold) FontWeight.Black else FontWeight.Normal, modifier = bgMod, textAlign = TextAlign.Center)
                         }
                     }
-                    AnimatedVisibility(visible = activeFilterIdx > 0, enter = fadeIn() + slideInHorizontally(), exit = fadeOut() + slideOutHorizontally(), modifier = Modifier.align(Alignment.TopStart)) { Box(Modifier.padding(8.dp).background(Ac, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(ColorEngine.PRESETS[activeFilterIdx].name, color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
+                    if (activeFilterIdx > 0) { Box(Modifier.align(Alignment.TopStart).padding(8.dp).background(Ac, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) { Text(ColorEngine.PRESETS[activeFilterIdx].name, color = Bk, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace) } }
                 } else {
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         val infiniteTransition = rememberInfiniteTransition(label = "pulse")

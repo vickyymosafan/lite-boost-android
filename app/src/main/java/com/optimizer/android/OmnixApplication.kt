@@ -11,8 +11,8 @@ class OmnixApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
+    override fun getWorkManagerConfiguration(): Configuration =
+        Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
 }

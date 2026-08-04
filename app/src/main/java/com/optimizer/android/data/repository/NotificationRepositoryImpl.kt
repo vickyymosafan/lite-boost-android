@@ -22,16 +22,18 @@ class NotificationRepositoryImpl @Inject constructor(
         private const val TAG = "NotificationRepository"
     }
 
-    override suspend fun saveNotification(notification: CapturedNotification) = withContext(Dispatchers.IO) {
-        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(notification.timestamp))
-        val logEntry = "[$time] ${notification.packageName} | ${notification.title}: ${notification.text}\n"
-        
-        try {
-            val file = File(context.filesDir, VAULT_FILE)
-            file.appendText(logEntry)
-            Log.d(TAG, "Saved to vault: $logEntry")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save to vault", e)
+    override suspend fun saveNotification(notification: CapturedNotification) {
+        withContext(Dispatchers.IO) {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(notification.timestamp))
+            val logEntry = "[$time] ${notification.packageName} | ${notification.title}: ${notification.text}\n"
+            
+            try {
+                val file = File(context.filesDir, VAULT_FILE)
+                file.appendText(logEntry)
+                Log.d(TAG, "Saved to vault: $logEntry")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save to vault", e)
+            }
         }
     }
 }
