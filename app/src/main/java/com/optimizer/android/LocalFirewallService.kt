@@ -3,10 +3,12 @@ package com.optimizer.android
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
+import com.optimizer.android.domain.model.VpnConfig
 
 class LocalFirewallService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private val vpnConfig = VpnConfig() // Default AdGuard DNS config
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP") {
@@ -20,14 +22,16 @@ class LocalFirewallService : VpnService() {
     private fun startVPN() {
         if (vpnInterface == null) {
             val builder = Builder()
-            builder.setSession("DNS Web Shield")
-            // Gunakan AdGuard DNS (Memblokir Iklan & Malware)
-            builder.addAddress("10.0.0.2", 24)
-            builder.addDnsServer("94.140.14.14")
-            builder.addDnsServer("94.140.15.15")
-            // Route DNS requests melalui VPN
-            builder.addRoute("94.140.14.14", 32)
-            builder.addRoute("94.140.15.15", 32)
+            builder.setSession(vpnConfig.sessionName)
+            builder.addAddress(vpnConfig.localAddress, vpnConfig.localPrefixLength)
+            
+            vpnConfig.dnsServers.forEach { dns ->
+                builder.addDnsServer(dns)
+            }
+            
+            vpnConfig.routes.forEach { route ->
+                builder.addRoute(route, vpnConfig.routePrefixLength)
+            }
             
             try {
                 vpnInterface = builder.establish()

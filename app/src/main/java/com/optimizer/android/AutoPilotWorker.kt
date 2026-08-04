@@ -3,29 +3,32 @@ package com.optimizer.android
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import java.io.File
+import com.optimizer.android.domain.repository.SystemRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.collect
 
-class AutoPilotWorker(
-    appContext: Context,
-    workerParams: WorkerParameters
+@HiltWorker
+class AutoPilotWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters,
+    private val systemRepository: SystemRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        // Cek izin (Android 11+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
-                // Jika tidak ada izin, batalkan auto-pilot.
                 return Result.failure()
             }
         }
 
-        // Lakukan pembersihan diam-diam
-        val foundFiles = OptimizerUtils.scanJunk { /* abaikan log */ }
+        val foundFiles = systemRepository.getJunkFiles()
         
         if (foundFiles.isNotEmpty()) {
-            OptimizerUtils.deleteJunkFiles(foundFiles) { /* abaikan log */ }
+            systemRepository.deleteJunkFiles(foundFiles).collect()
         }
 
         return Result.success()

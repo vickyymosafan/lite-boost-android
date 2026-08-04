@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -32,16 +33,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
+import com.optimizer.android.presentation.CameraViewModel
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+@AndroidEntryPoint
 class ProCameraActivity : ComponentActivity() {
 
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
+    
+    private val viewModel: CameraViewModel by viewModels()
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -71,24 +74,21 @@ class ProCameraActivity : ComponentActivity() {
     }
 
     private fun takePhoto() {
-        val imageCapture = imageCapture ?: return
+        val capture = imageCapture ?: return
 
-        val photoFile = File(
-            externalMediaDirs.firstOrNull(),
-            SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis()) + ".jpg"
-        )
-
+        val photoFile = viewModel.getPhotoFile()
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-        imageCapture.takePicture(
+        capture.takePicture(
             outputOptions, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e("iClone", "Photo capture failed: ${exc.message}", exc)
+                    viewModel.onPhotoError(exc.message ?: "Unknown error")
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     Log.d("iClone", "Photo capture succeeded: ${photoFile.absolutePath}")
-                    Toast.makeText(this@ProCameraActivity, "Photo saved!", Toast.LENGTH_SHORT).show()
+                    viewModel.onPhotoSaved()
                 }
             })
     }
@@ -98,7 +98,15 @@ class ProCameraActivity : ComponentActivity() {
         val lifecycleOwner = LocalLifecycleOwner.current
         val context = LocalContext.current
         val previewView = remember { PreviewView(context) }
-        var isHdrEnabled by remember { mutableStateOf(false) }
+        
+        val uiState by viewModel.uiState.collectAsState()
+
+        LaunchedEffect(uiState.showToastMessage) {
+            uiState.showToastMessage?.let { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                viewModel.clearToastMessage()
+            }
+        }
 
         LaunchedEffect(previewView) {
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -113,19 +121,16 @@ class ProCameraActivity : ComponentActivity() {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                    // ZSL configuration
                     imageCapture = ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                         .build()
 
                     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                    
                     var activeCameraSelector = cameraSelector
 
-                    // Enable HDR if available
                     if (extensionsManager.isExtensionAvailable(cameraSelector, ExtensionMode.HDR)) {
                         activeCameraSelector = extensionsManager.getExtensionEnabledCameraSelector(cameraSelector, ExtensionMode.HDR)
-                        isHdrEnabled = true
+                        viewModel.setHdrEnabled(true)
                     } else if (extensionsManager.isExtensionAvailable(cameraSelector, ExtensionMode.BOKEH)) {
                         activeCameraSelector = extensionsManager.getExtensionEnabledCameraSelector(cameraSelector, ExtensionMode.BOKEH)
                     }
@@ -148,7 +153,7 @@ class ProCameraActivity : ComponentActivity() {
                 factory = { previewView },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(3f/4f) // iPhone style aspect ratio
+                    .aspectRatio(3f/4f)
                     .align(Alignment.Center)
             )
 
@@ -160,12 +165,12 @@ class ProCameraActivity : ComponentActivity() {
                     .align(Alignment.TopCenter),
                 horizontalArrangement = Arrangement.Center
             ) {
-                if (isHdrEnabled) {
+                if (uiState.isHdrEnabled) {
                     Text("HDR", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
-            // Bottom Bar (Shutter)
+            // Bottom Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

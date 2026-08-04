@@ -12,6 +12,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,42 +49,41 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.work.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.concurrent.TimeUnit
+import dagger.hilt.android.AndroidEntryPoint
+import com.optimizer.android.presentation.MainViewModel
+import com.optimizer.android.presentation.MainUiState
 
 // GEN-Z NEO-BRUTALISM COLORS
 val PitchBlack = Color(0xFF000000)
 val CrispWhite = Color(0xFFFFFFFF)
 val NeonGreen = Color(0xFF00FF00)
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val logs = mutableStateListOf<String>("SYSTEM BOOT OK.")
+    private val viewModel: MainViewModel by viewModels()
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true) {
-            logs.add("ACCESS GRANTED.")
+            viewModel.log("ACCESS GRANTED.")
         }
     }
 
     private val vpnLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             startService(Intent(this, LocalFirewallService::class.java))
-            logs.add("🔥 VPN FIREWALL: ACTIVE")
+            viewModel.log("🔥 VPN FIREWALL: ACTIVE")
         } else {
-            logs.add("VPN FIREWALL: DENIED")
+            viewModel.log("VPN FIREWALL: DENIED")
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkPermissions()
+        viewModel.loadVaultContent(filesDir)
 
         setContent {
             MaterialTheme(
@@ -99,16 +99,22 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OptimizerDashboard(logs)
+                    val uiState by viewModel.uiState.collectAsState()
+                    OptimizerDashboard(uiState)
                 }
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshSystemStatus()
+    }
+
     private fun checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
-                logs.add("REQUESTING ROOT-LEVEL STORAGE ACCESS...")
+                viewModel.log("REQUESTING ROOT-LEVEL STORAGE ACCESS...")
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                     intent.data = Uri.parse("package:$packageName")
@@ -127,22 +133,22 @@ class MainActivity : ComponentActivity() {
             vpnLauncher.launch(intent)
         } else {
             startService(Intent(this, LocalFirewallService::class.java))
-            logs.add("🔥 VPN FIREWALL: ACTIVE")
+            viewModel.log("🔥 VPN FIREWALL: ACTIVE")
         }
     }
 
     private fun requestAccessibility() {
-        logs.add("REQUESTING ACCESSIBILITY FOR HIBERNATION...")
+        viewModel.log("REQUESTING ACCESSIBILITY FOR HIBERNATION...")
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     private fun requestNotificationAccess() {
-        logs.add("REQUESTING NOTIFICATION LISTENER...")
+        viewModel.log("REQUESTING NOTIFICATION LISTENER...")
         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
     
     private fun requestWorkProfile() {
-        logs.add("PROVISIONING WORK PROFILE...")
+        viewModel.log("PROVISIONING WORK PROFILE...")
         try {
             val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
             intent.putExtra(
@@ -151,34 +157,13 @@ class MainActivity : ComponentActivity() {
             )
             startActivity(intent)
         } catch (e: Exception) {
-            logs.add("FAILED: Work Profile not supported.")
+            viewModel.log("FAILED: Work Profile not supported.")
         }
-    }
-    
-    private fun readVault(): String {
-        val file = File(filesDir, "vault.txt")
-        return if (file.exists()) file.readText() else "VAULT IS EMPTY."
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun OptimizerDashboard(consoleLogs: List<String>) {
-        val coroutineScope = rememberCoroutineScope()
-        var storageStat by remember { mutableStateOf(OptimizerUtils.getStorageStatus()) }
-        var ramStat by remember { mutableStateOf(OptimizerUtils.getRamStatus(this@MainActivity)) }
-        var batteryStat by remember { mutableStateOf(OptimizerUtils.getBatteryStatus(this@MainActivity)) }
-        
-        // State for Junk Cleaner
-        var isScanning by remember { mutableStateOf(false) }
-        var scannedFiles by remember { mutableStateOf<List<File>?>(null) }
-        
-        // Dialog States
-        var showVpnDialog by remember { mutableStateOf(false) }
-        var showHibernationDialog by remember { mutableStateOf(false) }
-        var showBlackholeDialog by remember { mutableStateOf(false) }
-        var showJunkDialog by remember { mutableStateOf(false) }
-        var showRamDialog by remember { mutableStateOf(false) }
-
+    fun OptimizerDashboard(uiState: MainUiState) {
         val scrollState = rememberScrollState()
 
         Column(modifier = Modifier
@@ -192,13 +177,13 @@ class MainActivity : ComponentActivity() {
             
             // --- SYSTEM STATUS DASHBOARD ---
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusCard(modifier = Modifier.weight(1f), title = "STORAGE", value = "${storageStat.freeMb} MB")
-                StatusCard(modifier = Modifier.weight(1f), title = "RAM", value = "${ramStat.freeMb} MB")
+                StatusCard(modifier = Modifier.weight(1f), title = "STORAGE", value = "${uiState.storageStat.freeMb} MB")
+                StatusCard(modifier = Modifier.weight(1f), title = "RAM", value = "${uiState.ramStat.freeMb} MB")
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusCard(modifier = Modifier.weight(1f), title = "TEMP", value = "${batteryStat.tempCelsius} °C", alert = batteryStat.tempCelsius > 40f)
-                StatusCard(modifier = Modifier.weight(1f), title = "HEALTH", value = batteryStat.healthString.uppercase(), alert = batteryStat.healthString != "Good")
+                StatusCard(modifier = Modifier.weight(1f), title = "TEMP", value = "${uiState.batteryStat.tempCelsius} °C", alert = uiState.batteryStat.tempCelsius > 40f)
+                StatusCard(modifier = Modifier.weight(1f), title = "HEALTH", value = uiState.batteryStat.health.name, alert = uiState.batteryStat.health.name != "GOOD")
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -210,12 +195,12 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "JUNK & CACHE CLEANER (2-STAGE)",
                 icon = Icons.Filled.CleaningServices,
-                onClick = { showJunkDialog = true }
+                onClick = { viewModel.toggleDialog("junk", true) }
             )
             SuperpowerCard(
                 title = "RAM SPEED BOOSTER",
                 icon = Icons.Filled.Speed,
-                onClick = { showRamDialog = true }
+                onClick = { viewModel.toggleDialog("ram", true) }
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -227,24 +212,25 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "DEEP ROOT APP ERASER",
                 icon = Icons.Filled.Delete,
-                onClick = { 
-                    startActivity(Intent(this@MainActivity, AppEraserActivity::class.java))
-                }
+                onClick = { startActivity(Intent(this@MainActivity, AppEraserActivity::class.java)) }
             )
             SuperpowerCard(
                 title = "WORK PROFILE ENGINE",
                 icon = Icons.Filled.FolderSpecial,
-                onClick = { showHibernationDialog = true } // Menggunakan dialog 2 untuk ini
+                onClick = { viewModel.toggleDialog("hibernation", true) } 
             )
             SuperpowerCard(
                 title = "ANTI-DELETE MESSAGE VAULT",
                 icon = Icons.Filled.Message,
-                onClick = { showBlackholeDialog = true } // Menggunakan dialog 3 untuk ini
+                onClick = { 
+                    viewModel.loadVaultContent(filesDir)
+                    viewModel.toggleDialog("blackhole", true) 
+                } 
             )
             SuperpowerCard(
                 title = "DNS-LEVEL WEB SHIELD",
                 icon = Icons.Filled.CloudOff,
-                onClick = { showVpnDialog = true } // Menggunakan dialog 1 untuk ini
+                onClick = { viewModel.toggleDialog("vpn", true) } 
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -256,17 +242,13 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "iCLONE PRO CAMERA",
                 icon = Icons.Filled.CameraAlt,
-                onClick = { 
-                    startActivity(Intent(this@MainActivity, ProCameraActivity::class.java))
-                }
+                onClick = { startActivity(Intent(this@MainActivity, ProCameraActivity::class.java)) }
             )
             
             SuperpowerCard(
                 title = "PRO STUDIO AI (EDITOR)",
                 icon = Icons.Filled.MovieCreation,
-                onClick = { 
-                    startActivity(Intent(this@MainActivity, ProStudioActivity::class.java))
-                }
+                onClick = { startActivity(Intent(this@MainActivity, ProStudioActivity::class.java)) }
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -283,7 +265,7 @@ class MainActivity : ComponentActivity() {
                     .padding(12.dp)
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(consoleLogs.reversed()) { log ->
+                    items(uiState.logs.reversed()) { log ->
                         Text(text = "> $log", color = NeonGreen, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                     }
                 }
@@ -316,91 +298,61 @@ class MainActivity : ComponentActivity() {
         }
 
         // --- DIALOGS ---
-        if (showVpnDialog) {
+        if (uiState.showVpnDialog) {
             NeoDialog(
                 title = "AKTIFKAN DNS SHIELD?",
                 text = "Sistem akan mengaktifkan VPN Lokal untuk memblokir seluruh iklan dan situs kotor se-sistem via AdGuard DNS.",
                 onConfirm = { 
-                    showVpnDialog = false
+                    viewModel.toggleDialog("vpn", false)
                     requestVpn()
                 },
-                onDismiss = { showVpnDialog = false }
+                onDismiss = { viewModel.toggleDialog("vpn", false) }
             )
         }
-        if (showJunkDialog) {
+        if (uiState.showJunkDialog) {
             NeoDialog(
                 title = "PINDAI & HAPUS CACHE SAMPAH?",
                 text = "Sistem akan memindai berkas .tmp, .log, dan cache sisa aplikasi secara transparan tanpa merusak data penting Anda.",
-                onConfirm = {
-                    showJunkDialog = false
-                    coroutineScope.launch {
-                        isScanning = true
-                        logs.add("MEMULAI SCANNING SAMPAH & CACHE...")
-                        val found = withContext(Dispatchers.IO) {
-                            OptimizerUtils.scanJunk { log -> logs.add(log) }
-                        }
-                        scannedFiles = found
-                        isScanning = false
-                        if (found.isNotEmpty()) {
-                            logs.add("MEMBERSIHKAN ${found.size} BERKAS SAMPAH...")
-                            withContext(Dispatchers.IO) {
-                                OptimizerUtils.deleteJunkFiles(found) { log -> logs.add(log) }
-                            }
-                            storageStat = OptimizerUtils.getStorageStatus()
-                            logs.add("CLEANUP SELESAI! PEMERSIHAN SUKSES.")
-                        } else {
-                            logs.add("PENYIMPANAN SUDAH BERSIH.")
-                        }
-                    }
-                },
-                onDismiss = { showJunkDialog = false }
+                onConfirm = { viewModel.startJunkScan() },
+                onDismiss = { viewModel.toggleDialog("junk", false) }
             )
         }
-        if (showRamDialog) {
+        if (uiState.showRamDialog) {
             NeoDialog(
                 title = "BOOST RAM & PERFORMANCE?",
                 text = "Sistem akan memicu pembersihan alokasi memori latar belakang dan mengoptimalkan kecepatan RAM.",
-                onConfirm = {
-                    showRamDialog = false
-                    coroutineScope.launch {
-                        logs.add("TRIGGERING RAM OPTIMIZATION & GC...")
-                        System.gc()
-                        ramStat = OptimizerUtils.getRamStatus(this@MainActivity)
-                        logs.add("RAM BOOSTED! FREE RAM: ${ramStat.freeMb} MB")
-                    }
-                },
-                onDismiss = { showRamDialog = false }
+                onConfirm = { viewModel.boostRam() },
+                onDismiss = { viewModel.toggleDialog("ram", false) }
             )
         }
-        if (showHibernationDialog) {
+        if (uiState.showHibernationDialog) {
             NeoDialog(
                 title = "CREATE WORK PROFILE?",
                 text = "Sistem akan membuat ruang ganda terpisah untuk mengkloning aplikasi.",
                 onConfirm = { 
-                    showHibernationDialog = false
+                    viewModel.toggleDialog("hibernation", false)
                     requestWorkProfile()
                 },
-                onDismiss = { showHibernationDialog = false }
+                onDismiss = { viewModel.toggleDialog("hibernation", false) }
             )
         }
-        if (showBlackholeDialog) {
-            var vaultContent by remember { mutableStateOf(readVault()) }
+        if (uiState.showBlackholeDialog) {
             AlertDialog(
-                onDismissRequest = { showBlackholeDialog = false },
+                onDismissRequest = { viewModel.toggleDialog("blackhole", false) },
                 shape = RoundedCornerShape(0.dp),
                 containerColor = PitchBlack,
                 title = { Text("ANTI-DELETE VAULT", fontWeight = FontWeight.Black, color = CrispWhite) },
                 text = {
                     LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                         item {
-                            Text(vaultContent, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = CrispWhite)
+                            Text(uiState.vaultContent, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = CrispWhite)
                         }
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = { 
-                            showBlackholeDialog = false
+                            viewModel.toggleDialog("blackhole", false)
                             requestNotificationAccess() 
                         },
                         shape = RoundedCornerShape(0.dp),
@@ -411,7 +363,7 @@ class MainActivity : ComponentActivity() {
                 },
                 dismissButton = {
                     OutlinedButton(
-                        onClick = { showBlackholeDialog = false },
+                        onClick = { viewModel.toggleDialog("blackhole", false) },
                         shape = RoundedCornerShape(0.dp),
                         border = BorderStroke(2.dp, CrispWhite),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)

@@ -144,6 +144,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.activity.viewModels
+import com.optimizer.android.presentation.StudioViewModel
+import dagger.hilt.android.AndroidEntryPoint
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import kotlin.math.abs
@@ -241,9 +244,11 @@ object ColorEngine {
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║                    MAIN ACTIVITY                                ║
 // ╚══════════════════════════════════════════════════════════════════╝
+@AndroidEntryPoint
 class ProStudioActivity : ComponentActivity() {
 
     private var exoPlayer: ExoPlayer? = null
+    private val viewModel: StudioViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
