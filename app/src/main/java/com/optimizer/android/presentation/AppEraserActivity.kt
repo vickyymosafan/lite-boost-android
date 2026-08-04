@@ -1,4 +1,4 @@
-package com.optimizer.android
+package com.optimizer.android.presentation
 
 import android.content.Intent
 import android.net.Uri
@@ -26,7 +26,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.optimizer.android.presentation.AppEraserViewModel
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.optimizer.android.PurgeResidualsWorker
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -37,7 +40,7 @@ class AppEraserActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        viewModel.loadApps(packageName)
+        viewModel.loadApps()
         
         setContent {
             val uiState by viewModel.uiState.collectAsState()
@@ -98,6 +101,14 @@ class AppEraserActivity : ComponentActivity() {
     }
 
     private fun nukeApp(pkg: String) {
+        // Queue aggressive cleanup
+        val data = workDataOf("package_name" to pkg)
+        val request = OneTimeWorkRequestBuilder<PurgeResidualsWorker>()
+            .setInputData(data)
+            .build()
+        WorkManager.getInstance(this).enqueue(request)
+
+        // Trigger system uninstaller
         val intent = Intent(Intent.ACTION_DELETE)
         intent.data = Uri.parse("package:$pkg")
         startActivity(intent)

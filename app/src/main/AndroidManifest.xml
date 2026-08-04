@@ -38,7 +38,7 @@
         
         <activity android:name=".ProStudioActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
         
-        <activity android:name=".AppEraserActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity android:name=".presentation.AppEraserActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
 
         <service
             android:name=".LocalFirewallService"

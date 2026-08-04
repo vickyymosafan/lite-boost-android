@@ -21,18 +21,25 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 class SystemRepositoryImpl @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) : SystemRepository {
+
+    companion object {
+        const val BYTES_IN_MB = 1048576L
+        const val BYTES_IN_KB = 1024L
+        const val TEMP_DIVISOR = 10.0f
+    }
 
     override fun getBatteryStatus(): BatteryStatus {
         val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         if (intent == null) return BatteryStatus(0f, BatteryHealth.UNKNOWN)
         
         val temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
-        val tempCelsius = temp / 10.0f
+        val tempCelsius = temp / TEMP_DIVISOR
         
         val health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN)
         val healthEnum = when (health) {
@@ -55,8 +62,8 @@ class SystemRepositoryImpl @Inject constructor(
         val totalBlocks = stat.blockCountLong
         val availableBlocks = stat.availableBlocksLong
         
-        val totalMb = (totalBlocks * blockSize) / 1048576L
-        val freeMb = (availableBlocks * blockSize) / 1048576L
+        val totalMb = (totalBlocks * blockSize) / BYTES_IN_MB
+        val freeMb = (availableBlocks * blockSize) / BYTES_IN_MB
         return StorageStatus(freeMb, totalMb)
     }
 
@@ -65,8 +72,8 @@ class SystemRepositoryImpl @Inject constructor(
         val memoryInfo = ActivityManager.MemoryInfo()
         am.getMemoryInfo(memoryInfo)
         
-        val totalMb = memoryInfo.totalMem / 1048576L
-        val freeMb = memoryInfo.availMem / 1048576L
+        val totalMb = memoryInfo.totalMem / BYTES_IN_MB
+        val freeMb = memoryInfo.availMem / BYTES_IN_MB
         return RamStatus(freeMb, totalMb)
     }
 
@@ -83,34 +90,28 @@ class SystemRepositoryImpl @Inject constructor(
     }.flowOn(Dispatchers.IO)
 
     override suspend fun getJunkFiles(): List<JunkFile> = withContext(Dispatchers.IO) {
-        val root = Environment.getExternalStorageDirectory()
+        // Use context.getExternalFilesDir to respect modern Android storage
+        val root = context.getExternalFilesDir(null) ?: Environment.getExternalStorageDirectory()
         val foundFiles = mutableListOf<JunkFile>()
         
         if (root == null || !root.exists()) return@withContext emptyList()
 
-        fun scanRecursively(dir: File) {
-            val files = dir.listFiles() ?: return
-            var isEmpty = true
-            for (file in files) {
-                isEmpty = false
-                if (file.isDirectory) {
-                    scanRecursively(file)
-                    if (file.absolutePath.contains("/Android/data/") && file.absolutePath.endsWith("/cache")) {
-                        foundFiles.add(JunkFile(file, getFolderSize(file)))
-                    } else if (file.listFiles()?.isEmpty() == true) {
-                        foundFiles.add(JunkFile(file, 0L))
-                    }
-                } else {
-                    val name = file.name.lowercase()
-                    if (name.endsWith(".tmp") || name.endsWith(".log") || 
-                        name.endsWith(".bak") || name.endsWith(".exo")) {
-                        foundFiles.add(JunkFile(file, file.length()))
-                    }
+        root.walkTopDown().forEach { file ->
+            if (file.isDirectory) {
+                if (file.absolutePath.contains("/Android/data/") && file.absolutePath.endsWith("/cache")) {
+                    foundFiles.add(JunkFile(file, getFolderSize(file)))
+                } else if (file.listFiles()?.isEmpty() == true) {
+                    foundFiles.add(JunkFile(file, 0L))
+                }
+            } else {
+                val name = file.name.lowercase()
+                if (name.endsWith(".tmp") || name.endsWith(".log") || 
+                    name.endsWith(".bak") || name.endsWith(".exo")) {
+                    foundFiles.add(JunkFile(file, file.length()))
                 }
             }
         }
 
-        scanRecursively(root)
         return@withContext foundFiles
     }
 
@@ -145,7 +146,12 @@ class SystemRepositoryImpl @Inject constructor(
         emit("Memulai optimasi RAM (Fast Reboot)...")
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val pm = context.packageManager
-        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val packages = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            pm.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        }
         var killedCount = 0
 
         for (appInfo in packages) {
@@ -161,4 +167,35 @@ class SystemRepositoryImpl @Inject constructor(
         emit("Fast Reboot berhasil! Menghentikan paksa $killedCount aplikasi.")
         emit("Sisa RAM telah direfresh.")
     }.flowOn(Dispatchers.IO)
+
+    override suspend fun getVaultContent(): String = withContext(Dispatchers.IO) {
+        val file = File(context.filesDir, "vault.txt")
+        if (file.exists()) {
+            file.readText()
+        } else {
+            "Vault kosong. Belum ada notifikasi yang ditangkap."
+        }
+    }
+
+    override fun triggerGarbageCollection() {
+        System.gc()
+    }
+
+    override suspend fun deleteAppResiduals(packageName: String): Boolean = withContext(Dispatchers.IO) {
+        val root = Environment.getExternalStorageDirectory()
+        val dirs = listOf(
+            File(root, "Android/data/$packageName"),
+            File(root, "Android/obb/$packageName")
+        )
+        
+        var success = true
+        for (dir in dirs) {
+            if (dir.exists()) {
+                if (!dir.deleteRecursively()) {
+                    success = false
+                }
+            }
+        }
+        return@withContext success
+    }
 }

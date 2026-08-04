@@ -17,7 +17,7 @@ class PackageRemoveReceiver : BroadcastReceiver() {
             val packageName = data.schemeSpecificPart
 
             val workData = Data.Builder()
-                .putString("PACKAGE_NAME", packageName)
+                .putString(PurgeResidualsWorker.KEY_PACKAGE_NAME, packageName)
                 .build()
 
             val purgeRequest = OneTimeWorkRequestBuilder<PurgeResidualsWorker>()

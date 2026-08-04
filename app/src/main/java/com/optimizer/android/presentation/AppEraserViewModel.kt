@@ -25,10 +25,10 @@ class AppEraserViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AppEraserUiState())
     val uiState: StateFlow<AppEraserUiState> = _uiState.asStateFlow()
 
-    fun loadApps(currentPackageName: String) {
+    fun loadApps() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val appsList = appRepository.getInstalledApps(currentPackageName)
+            val appsList = appRepository.getInstalledApps()
             _uiState.update { it.copy(apps = appsList, isLoading = false) }
         }
     }

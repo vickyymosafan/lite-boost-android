@@ -16,17 +16,16 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+enum class DialogType { NONE, VPN, HIBERNATION, JUNK, RAM, BLACKHOLE }
+
 data class MainUiState(
     val storageStat: StorageStatus = StorageStatus(0, 0),
     val ramStat: RamStatus = RamStatus(0, 0),
     val batteryStat: BatteryStatus = BatteryStatus(0f, BatteryHealth.UNKNOWN),
     val logs: List<String> = listOf("SYSTEM BOOT OK."),
     val isScanning: Boolean = false,
-    val showVpnDialog: Boolean = false,
-    val showHibernationDialog: Boolean = false,
-    val showBlackholeDialog: Boolean = false,
-    val showJunkDialog: Boolean = false,
-    val showRamDialog: Boolean = false,
+    val activeDialog: DialogType = DialogType.NONE,
+    val vpnActive: Boolean = false,
     val vaultContent: String = "VAULT IS EMPTY."
 )
 
@@ -56,30 +55,20 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun toggleDialog(dialog: String, show: Boolean) {
-        _uiState.update { state ->
-            when (dialog) {
-                "vpn" -> state.copy(showVpnDialog = show)
-                "hibernation" -> state.copy(showHibernationDialog = show)
-                "blackhole" -> state.copy(showBlackholeDialog = show)
-                "junk" -> state.copy(showJunkDialog = show)
-                "ram" -> state.copy(showRamDialog = show)
-                else -> state
-            }
-        }
+    fun toggleDialog(dialog: DialogType) {
+        _uiState.update { it.copy(activeDialog = if (it.activeDialog == dialog) DialogType.NONE else dialog) }
     }
 
-    fun loadVaultContent(filesDir: File) {
+    fun loadVaultContent() {
         viewModelScope.launch {
-            val file = File(filesDir, "vault.txt")
-            val content = if (file.exists()) file.readText() else "VAULT IS EMPTY."
+            val content = systemRepository.getVaultContent()
             _uiState.update { it.copy(vaultContent = content) }
         }
     }
 
     fun startJunkScan() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanning = true, showJunkDialog = false) }
+            _uiState.update { it.copy(isScanning = true, activeDialog = DialogType.NONE) }
             log("MEMULAI SCANNING SAMPAH & CACHE...")
             
             systemRepository.scanJunk().collect { msg -> log(msg) }
@@ -99,7 +88,7 @@ class MainViewModel @Inject constructor(
 
     fun boostRam() {
         viewModelScope.launch {
-            _uiState.update { it.copy(showRamDialog = false) }
+            _uiState.update { it.copy(activeDialog = DialogType.NONE) }
             log("TRIGGERING RAM OPTIMIZATION & GC...")
             System.gc()
             

@@ -1,7 +1,7 @@
 package com.optimizer.android.domain.repository
 
-import android.service.notification.StatusBarNotification
+import com.optimizer.android.domain.model.CapturedNotification
 
 interface NotificationRepository {
-    suspend fun saveNotification(sbn: StatusBarNotification?)
+    suspend fun saveNotification(notification: CapturedNotification)
 }

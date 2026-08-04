@@ -11,35 +11,28 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.optimizer.android.domain.repository.SystemRepository
 
 @HiltWorker
 class PurgeResidualsWorker @AssistedInject constructor(
     @Assisted appContext: Context,
-    @Assisted workerParams: WorkerParameters
+    @Assisted workerParams: WorkerParameters,
+    private val systemRepository: SystemRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
+    companion object {
+        const val KEY_PACKAGE_NAME = "PACKAGE_NAME"
+    }
+
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val packageName = inputData.getString("PACKAGE_NAME") ?: return@withContext Result.failure()
+        val pkg = inputData.getString(KEY_PACKAGE_NAME) ?: return@withContext Result.failure()
         
-        val root = Environment.getExternalStorageDirectory()
-        val dataDir = File(root, "Android/data")
-        val obbDir = File(root, "Android/obb")
-
-        val targets = listOf(
-            File(dataDir, packageName),
-            File(obbDir, packageName),
-            File(root, packageName)
-        )
-
-        var deletedCount = 0
-        for (target in targets) {
-            if (target.exists() && target.isDirectory) {
-                if (target.deleteRecursively()) {
-                    deletedCount++
-                }
-            }
+        val success = systemRepository.deleteAppResiduals(pkg)
+        
+        if (success) {
+            Result.success()
+        } else {
+            Result.failure()
         }
-        
-        return@withContext Result.success()
     }
 }

@@ -35,13 +35,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.optimizer.android.presentation.CameraViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 @AndroidEntryPoint
 class ProCameraActivity : ComponentActivity() {
 
-    private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
     
     private val viewModel: CameraViewModel by viewModels()
@@ -59,7 +56,6 @@ class ProCameraActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        cameraExecutor = Executors.newSingleThreadExecutor()
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             setContent { CameraScreen() }
@@ -68,10 +64,6 @@ class ProCameraActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
-    }
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
@@ -82,12 +74,12 @@ class ProCameraActivity : ComponentActivity() {
         capture.takePicture(
             outputOptions, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
-                    Log.e("iClone", "Photo capture failed: ${exc.message}", exc)
+                    Log.e("ProCameraActivity", "Photo capture failed: ${exc.message}", exc)
                     viewModel.onPhotoError(exc.message ?: "Unknown error")
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    Log.d("iClone", "Photo capture succeeded: ${photoFile.absolutePath}")
+                    Log.d("ProCameraActivity", "Photo capture succeeded: ${photoFile.absolutePath}")
                     viewModel.onPhotoSaved()
                 }
             })
@@ -141,51 +133,69 @@ class ProCameraActivity : ComponentActivity() {
                             lifecycleOwner, activeCameraSelector, preview, imageCapture
                         )
                     } catch (exc: Exception) {
-                        Log.e("iClone", "Use case binding failed", exc)
+                        Log.e("ProCameraActivity", "Use case binding failed", exc)
                     }
                 }, ContextCompat.getMainExecutor(context))
                 
             }, ContextCompat.getMainExecutor(context))
         }
 
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView(
-                factory = { previewView },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(3f/4f)
-                    .align(Alignment.Center)
-            )
+        CameraUI(
+            previewView = previewView,
+            isHdrEnabled = uiState.isHdrEnabled,
+            onCaptureClick = { takePhoto() }
+        )
+    }
+}
 
-            // Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .align(Alignment.TopCenter),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (uiState.isHdrEnabled) {
-                    Text("HDR", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            }
+@Composable
+fun CameraUI(
+    previewView: PreviewView,
+    isHdrEnabled: Boolean,
+    onCaptureClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(3f/4f)
+                .align(Alignment.Center)
+        )
 
-            // Bottom Bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(Color.Black)
-                    .align(Alignment.BottomCenter)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .background(Color.White, CircleShape)
-                        .align(Alignment.Center)
-                        .clickable { takePhoto() }
-                )
-            }
+        CameraTopBar(isHdrEnabled = isHdrEnabled, modifier = Modifier.align(Alignment.TopCenter))
+        CameraBottomBar(onCaptureClick = onCaptureClick, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+fun CameraTopBar(isHdrEnabled: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (isHdrEnabled) {
+            Text("HDR", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
+    }
+}
+
+@Composable
+fun CameraBottomBar(onCaptureClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(120.dp)
+            .background(Color.Black)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .background(Color.White, CircleShape)
+                .align(Alignment.Center)
+                .clickable { onCaptureClick() }
+        )
     }
 }

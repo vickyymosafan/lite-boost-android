@@ -48,15 +48,20 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.optimizer.android.presentation.AppEraserActivity
+import com.optimizer.android.domain.model.BatteryHealth
 import com.optimizer.android.presentation.MainViewModel
 import com.optimizer.android.presentation.MainUiState
+import com.optimizer.android.presentation.DialogType
+import dagger.hilt.android.AndroidEntryPoint
 
-// GEN-Z NEO-BRUTALISM COLORS
-val PitchBlack = Color(0xFF000000)
-val CrispWhite = Color(0xFFFFFFFF)
-val NeonGreen = Color(0xFF00FF00)
+import com.optimizer.android.ui.components.CrispWhite
+import com.optimizer.android.ui.components.NeonGreen
+import com.optimizer.android.ui.components.NeoDialog
+import com.optimizer.android.ui.components.PitchBlack
+import com.optimizer.android.ui.components.StatusCard
+import com.optimizer.android.ui.components.SuperpowerCard
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -83,7 +88,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkPermissions()
-        viewModel.loadVaultContent(filesDir)
+        viewModel.loadVaultContent()
 
         setContent {
             MaterialTheme(
@@ -135,11 +140,6 @@ class MainActivity : ComponentActivity() {
             startService(Intent(this, LocalFirewallService::class.java))
             viewModel.log("🔥 VPN FIREWALL: ACTIVE")
         }
-    }
-
-    private fun requestAccessibility() {
-        viewModel.log("REQUESTING ACCESSIBILITY FOR HIBERNATION...")
-        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     private fun requestNotificationAccess() {
@@ -195,12 +195,12 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "JUNK & CACHE CLEANER (2-STAGE)",
                 icon = Icons.Filled.CleaningServices,
-                onClick = { viewModel.toggleDialog("junk", true) }
+                onClick = { viewModel.toggleDialog(DialogType.JUNK) }
             )
             SuperpowerCard(
                 title = "RAM SPEED BOOSTER",
                 icon = Icons.Filled.Speed,
-                onClick = { viewModel.toggleDialog("ram", true) }
+                onClick = { viewModel.toggleDialog(DialogType.RAM) }
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -217,20 +217,20 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "WORK PROFILE ENGINE",
                 icon = Icons.Filled.FolderSpecial,
-                onClick = { viewModel.toggleDialog("hibernation", true) } 
+                onClick = { viewModel.toggleDialog(DialogType.HIBERNATION) } 
             )
             SuperpowerCard(
                 title = "ANTI-DELETE MESSAGE VAULT",
                 icon = Icons.Filled.Message,
                 onClick = { 
-                    viewModel.loadVaultContent(filesDir)
-                    viewModel.toggleDialog("blackhole", true) 
+                    viewModel.loadVaultContent()
+                    viewModel.toggleDialog(DialogType.BLACKHOLE) 
                 } 
             )
             SuperpowerCard(
                 title = "DNS-LEVEL WEB SHIELD",
                 icon = Icons.Filled.CloudOff,
-                onClick = { viewModel.toggleDialog("vpn", true) } 
+                onClick = { viewModel.toggleDialog(DialogType.VPN) } 
             )
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -298,47 +298,47 @@ class MainActivity : ComponentActivity() {
         }
 
         // --- DIALOGS ---
-        if (uiState.showVpnDialog) {
+        if (uiState.activeDialog == DialogType.VPN) {
             NeoDialog(
                 title = "AKTIFKAN DNS SHIELD?",
                 text = "Sistem akan mengaktifkan VPN Lokal untuk memblokir seluruh iklan dan situs kotor se-sistem via AdGuard DNS.",
                 onConfirm = { 
-                    viewModel.toggleDialog("vpn", false)
+                    viewModel.toggleDialog(DialogType.NONE)
                     requestVpn()
                 },
-                onDismiss = { viewModel.toggleDialog("vpn", false) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
             )
         }
-        if (uiState.showJunkDialog) {
+        if (uiState.activeDialog == DialogType.JUNK) {
             NeoDialog(
                 title = "PINDAI & HAPUS CACHE SAMPAH?",
                 text = "Sistem akan memindai berkas .tmp, .log, dan cache sisa aplikasi secara transparan tanpa merusak data penting Anda.",
                 onConfirm = { viewModel.startJunkScan() },
-                onDismiss = { viewModel.toggleDialog("junk", false) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
             )
         }
-        if (uiState.showRamDialog) {
+        if (uiState.activeDialog == DialogType.RAM) {
             NeoDialog(
                 title = "BOOST RAM & PERFORMANCE?",
                 text = "Sistem akan memicu pembersihan alokasi memori latar belakang dan mengoptimalkan kecepatan RAM.",
                 onConfirm = { viewModel.boostRam() },
-                onDismiss = { viewModel.toggleDialog("ram", false) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
             )
         }
-        if (uiState.showHibernationDialog) {
+        if (uiState.activeDialog == DialogType.HIBERNATION) {
             NeoDialog(
                 title = "CREATE WORK PROFILE?",
                 text = "Sistem akan membuat ruang ganda terpisah untuk mengkloning aplikasi.",
                 onConfirm = { 
-                    viewModel.toggleDialog("hibernation", false)
+                    viewModel.toggleDialog(DialogType.NONE)
                     requestWorkProfile()
                 },
-                onDismiss = { viewModel.toggleDialog("hibernation", false) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
             )
         }
-        if (uiState.showBlackholeDialog) {
+        if (uiState.activeDialog == DialogType.BLACKHOLE) {
             AlertDialog(
-                onDismissRequest = { viewModel.toggleDialog("blackhole", false) },
+                onDismissRequest = { viewModel.toggleDialog(DialogType.NONE) },
                 shape = RoundedCornerShape(0.dp),
                 containerColor = PitchBlack,
                 title = { Text("ANTI-DELETE VAULT", fontWeight = FontWeight.Black, color = CrispWhite) },
@@ -352,7 +352,7 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {
                     Button(
                         onClick = { 
-                            viewModel.toggleDialog("blackhole", false)
+                            viewModel.toggleDialog(DialogType.NONE)
                             requestNotificationAccess() 
                         },
                         shape = RoundedCornerShape(0.dp),
@@ -363,7 +363,7 @@ class MainActivity : ComponentActivity() {
                 },
                 dismissButton = {
                     OutlinedButton(
-                        onClick = { viewModel.toggleDialog("blackhole", false) },
+                        onClick = { viewModel.toggleDialog(DialogType.NONE) },
                         shape = RoundedCornerShape(0.dp),
                         border = BorderStroke(2.dp, CrispWhite),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)
@@ -375,70 +375,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    fun StatusCard(modifier: Modifier = Modifier, title: String, value: String, alert: Boolean = false) {
-        val color = if (alert) Color.Red else CrispWhite
-        OutlinedCard(
-            modifier = modifier,
-            shape = RoundedCornerShape(0.dp),
-            border = BorderStroke(2.dp, color),
-            colors = CardDefaults.outlinedCardColors(containerColor = PitchBlack)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(title, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = color)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(value, fontWeight = FontWeight.Black, fontSize = 20.sp, color = color)
-            }
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    fun SuperpowerCard(title: String, icon: ImageVector, onClick: () -> Unit) {
-        OutlinedCard(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            shape = RoundedCornerShape(0.dp),
-            border = BorderStroke(2.dp, CrispWhite),
-            colors = CardDefaults.outlinedCardColors(containerColor = PitchBlack),
-            onClick = onClick
-        ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = CrispWhite)
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = CrispWhite)
-            }
-        }
-    }
-
-    @Composable
-    fun NeoDialog(title: String, text: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            shape = RoundedCornerShape(0.dp),
-            containerColor = PitchBlack,
-            titleContentColor = CrispWhite,
-            textContentColor = CrispWhite,
-            title = { Text(title, fontWeight = FontWeight.Black) },
-            text = { Text(text, fontFamily = FontFamily.Monospace) },
-            confirmButton = {
-                Button(
-                    onClick = onConfirm, 
-                    shape = RoundedCornerShape(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CrispWhite, contentColor = PitchBlack)
-                ) {
-                    Text("GASKAN", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    shape = RoundedCornerShape(0.dp),
-                    border = BorderStroke(2.dp, CrispWhite),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)
-                ) {
-                    Text("BATAL", fontWeight = FontWeight.Bold)
-                }
-            }
-        )
     }
 }

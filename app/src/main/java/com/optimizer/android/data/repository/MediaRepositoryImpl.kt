@@ -5,10 +5,11 @@ import com.optimizer.android.domain.repository.MediaRepository
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 class MediaRepositoryImpl @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) : MediaRepository {
 
     override fun createPhotoFile(): File {

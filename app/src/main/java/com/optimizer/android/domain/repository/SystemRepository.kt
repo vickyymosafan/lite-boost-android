@@ -11,9 +11,10 @@ interface SystemRepository {
     fun getStorageStatus(): StorageStatus
     fun getRamStatus(): RamStatus
     
-    suspend fun scanJunk(): Flow<String>
     suspend fun getJunkFiles(): List<JunkFile>
     suspend fun deleteJunkFiles(files: List<JunkFile>): Flow<String>
-    
     suspend fun killBackgroundProcesses(): Flow<String>
+    suspend fun getVaultContent(): String
+    fun triggerGarbageCollection()
+    suspend fun deleteAppResiduals(packageName: String): Boolean
 }

@@ -145,7 +145,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.activity.viewModels
-import com.optimizer.android.presentation.StudioViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -170,7 +169,7 @@ private val Cy = Color(0xFF00BCD4)
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║                    DATA CLASSES & ENUMS                         ║
 // ╚══════════════════════════════════════════════════════════════════╝
-enum class DrawToolType { PEN, ERASER, RECTANGLE, CIRCLE, LINE }
+enum class DrawToolType { PEN, RECTANGLE, CIRCLE, LINE }
 data class DrawAction(val points: List<Offset>, val color: Color, val width: Float, val tool: DrawToolType = DrawToolType.PEN)
 data class FilterPreset(val name: String, val color: Color, val matrix: FloatArray)
 data class TabItem(val name: String, val icon: ImageVector)
@@ -248,7 +247,7 @@ object ColorEngine {
 class ProStudioActivity : ComponentActivity() {
 
     private var exoPlayer: ExoPlayer? = null
-    private val viewModel: StudioViewModel by viewModels()
+    private val viewModel: com.optimizer.android.presentation.StudioViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -294,10 +293,6 @@ class ProStudioActivity : ComponentActivity() {
         for (a in drawActions) {
             drawPaint.color = android.graphics.Color.argb(255, (a.color.red*255).toInt(), (a.color.green*255).toInt(), (a.color.blue*255).toInt())
             drawPaint.strokeWidth = a.width * ((scaleX + scaleY) / 2)
-            if (a.tool == DrawToolType.ERASER) {
-                // Not perfectly supported in export without porter duff on a layer, so skip eraser in raw burn
-                continue
-            }
             if (a.tool == DrawToolType.PEN && a.points.size > 1) {
                 for (i in 0 until a.points.size - 1) {
                     canvas.drawLine(a.points[i].x * scaleX, a.points[i].y * scaleY, a.points[i+1].x * scaleX, a.points[i+1].y * scaleY, drawPaint)
@@ -359,47 +354,7 @@ class ProStudioActivity : ComponentActivity() {
         } catch (e: Exception) { Toast.makeText(this, "Export error: ${e.message}", Toast.LENGTH_SHORT).show() }
     }
 
-    // ═══════════ EXTRACT AUDIO (M4A) ═══════════
-    private fun extractAudio(sourceUri: Uri, onComplete: (String) -> Unit, onError: (String) -> Unit) {
-        Thread {
-            try {
-                val extractor = MediaExtractor()
-                extractor.setDataSource(this, sourceUri, null)
-                var audioIdx = -1; var audioFmt: MediaFormat? = null
-                for (i in 0 until extractor.trackCount) {
-                    val fmt = extractor.getTrackFormat(i)
-                    if (fmt.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) { audioIdx = i; audioFmt = fmt; break }
-                }
-                if (audioIdx < 0 || audioFmt == null) { runOnUiThread { onError("No audio track found") }; return@Thread }
-                extractor.selectTrack(audioIdx)
-                val dir = getExternalFilesDir(Environment.DIRECTORY_MUSIC) ?: filesDir
-                val file = File(dir, "OMNIX_Audio_${System.currentTimeMillis()}.m4a")
-                val muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-                val muxTrack = muxer.addTrack(audioFmt); muxer.start()
-                val buf = ByteBuffer.allocate(1024 * 512)
-                val info = MediaCodec.BufferInfo()
-                while (true) {
-                    val sz = extractor.readSampleData(buf, 0); if (sz < 0) break
-                    info.offset = 0; info.size = sz; info.presentationTimeUs = extractor.sampleTime; info.flags = extractor.sampleFlags
-                    muxer.writeSampleData(muxTrack, buf, info); extractor.advance()
-                }
-                muxer.stop(); muxer.release(); extractor.release()
-                runOnUiThread { onComplete(file.absolutePath) }
-            } catch (e: Exception) { runOnUiThread { onError(e.message ?: "Failed") } }
-        }.start()
-    }
 
-    private fun captureFrame(uri: Uri, positionMs: Long, onComplete: (Bitmap) -> Unit) {
-        Thread {
-            try {
-                val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(this, uri)
-                val frame = retriever.getFrameAtTime(positionMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
-                retriever.release()
-                frame?.let { runOnUiThread { onComplete(it) } }
-            } catch (e: Exception) {}
-        }.start()
-    }
 
     private fun cropToRatio(bmp: Bitmap, ratioW: Float, ratioH: Float): Bitmap {
         val targetR = ratioW / ratioH; val currentR = bmp.width.toFloat() / bmp.height.toFloat()
@@ -688,13 +643,13 @@ class ProStudioActivity : ComponentActivity() {
                         onReset = { brightness=0f; contrast=1f; saturation=1f; temperature=0f; tint=0f; exposure=0f; highlights=0f; shadows=0f; fade=0f; sharpness=0f; vignette=0f; grain=0f; activeFilterIdx=0 })
                     1 -> PanelFilter(activeFilterIdx, filterIntensity, onSelect = { activeFilterIdx = it }, onIntensity = { filterIntensity = it })
                     2 -> PanelSpeed(playbackSpeed, keepPitch, onSpeed = { playbackSpeed = it; exoPlayer?.playbackParameters = PlaybackParameters(it, if (keepPitch) 1f else it) }, onPitch = { keepPitch = it; exoPlayer?.playbackParameters = PlaybackParameters(playbackSpeed, if (it) 1f else playbackSpeed) },
-                        onFreezeFrame = { if (selectedUri != null && mediaType == "video") { captureFrame(selectedUri!!, currentPositionMs) { bmp -> photoBitmap = bmp; mediaType = "image"; statusLog = "FREEZE FRAME CAPTURED" } } else statusLog = "LOAD VIDEO FIRST" })
+                        onFreezeFrame = { if (selectedUri != null && mediaType == "video") { viewModel.captureFrame(context, selectedUri!!, currentPositionMs) { bmp -> photoBitmap = bmp; mediaType = "image"; statusLog = "FREEZE FRAME CAPTURED" } } else statusLog = "LOAD VIDEO FIRST" })
                     3 -> PanelText(textOverlay, textSize, textBold, textColor, textHasBg, textBgColor, textHasStroke, textStrokeColor, textStrokeWidth, textHasShadow,
                         onText = { textOverlay = it }, onSize = { textSize = it }, onBold = { textBold = it }, onColor = { textColor = it }, onBgToggle = { textHasBg = it }, onBgColor = { textBgColor = it }, onStrokeToggle = { textHasStroke = it }, onStrokeColor = { textStrokeColor = it }, onStrokeW = { textStrokeWidth = it }, onShadowToggle = { textHasShadow = it })
                     4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it }, onTool = { drawTool = it },
                         onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()) } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()) } }, onClear = { drawActions.clear(); redoStack.clear() })
                     5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it }, onMute = { isMuted = it }, onFadeIn = { fadeInSec = it }, onFadeOut = { fadeOutSec = it },
-                        onExtract = { if (selectedUri != null && mediaType == "video") { extractAudio(selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
+                        onExtract = { if (selectedUri != null && mediaType == "video") { viewModel.extractAudio(context, selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
                     6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
                         onReset = { rotation = 0f; flipH = false; flipV = false },
                         onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } })
@@ -881,7 +836,7 @@ class ProStudioActivity : ComponentActivity() {
             actions.forEach { a ->
                 when (a.tool) {
                     DrawToolType.PEN -> { for (i in 0 until a.points.size - 1) drawLine(a.color, a.points[i], a.points[i+1], strokeWidth = a.width, cap = StrokeCap.Round) }
-                    DrawToolType.ERASER -> { for (i in 0 until a.points.size - 1) drawLine(Bk, a.points[i], a.points[i+1], strokeWidth = a.width * 3, cap = StrokeCap.Round) }
+
                     DrawToolType.RECTANGLE -> if (a.points.size >= 2) { val s = a.points.first(); val e = a.points.last(); drawRect(a.color, topLeft = Offset(min(s.x, e.x), min(s.y, e.y)), size = Size(abs(e.x - s.x), abs(e.y - s.y)), style = Stroke(width = a.width)) }
                     DrawToolType.CIRCLE -> if (a.points.size >= 2) { val s = a.points.first(); val e = a.points.last(); val cx = (s.x + e.x) / 2; val cy = (s.y + e.y) / 2; val r = sqrt((e.x - s.x) * (e.x - s.x) + (e.y - s.y) * (e.y - s.y)) / 2; drawCircle(a.color, radius = r, center = Offset(cx, cy), style = Stroke(width = a.width)) }
                     DrawToolType.LINE -> if (a.points.size >= 2) { drawLine(a.color, a.points.first(), a.points.last(), strokeWidth = a.width, cap = StrokeCap.Round) }
@@ -900,7 +855,7 @@ class ProStudioActivity : ComponentActivity() {
             )
         }) {
             when (tool) {
-                DrawToolType.PEN, DrawToolType.ERASER -> { val c = if (tool == DrawToolType.ERASER) Bk else brushColor; val w = if (tool == DrawToolType.ERASER) brushWidth * 3 else brushWidth
+                DrawToolType.PEN -> { val c = brushColor; val w = brushWidth
                     for (i in 0 until currentPoints.size - 1) drawLine(c, currentPoints[i], currentPoints[i+1], strokeWidth = w, cap = StrokeCap.Round) }
                 DrawToolType.RECTANGLE -> if (currentPoints.size >= 2) { val s = currentPoints.first(); val e = currentPoints.last(); drawRect(brushColor, Offset(min(s.x, e.x), min(s.y, e.y)), Size(abs(e.x - s.x), abs(e.y - s.y)), style = Stroke(width = brushWidth)) }
                 DrawToolType.CIRCLE -> if (currentPoints.size >= 2) { val s = currentPoints.first(); val e = currentPoints.last(); drawCircle(brushColor, radius = sqrt((e.x-s.x)*(e.x-s.x)+(e.y-s.y)*(e.y-s.y))/2, center = Offset((s.x+e.x)/2, (s.y+e.y)/2), style = Stroke(width = brushWidth)) }

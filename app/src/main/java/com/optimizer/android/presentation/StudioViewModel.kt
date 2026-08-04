@@ -1,106 +1,100 @@
 package com.optimizer.android.presentation
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
+import android.media.MediaMuxer
+import android.net.Uri
+import android.os.Environment
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.nio.ByteBuffer
 import javax.inject.Inject
-
-data class StudioUiState(
-    val statusLog: String = "PILIH VIDEO ATAU FOTO DARI GALERI",
-    val mediaType: String = "none",
-    val isPlaying: Boolean = false,
-    val currentTab: Int = 0,
-    
-    // Color Grading
-    val brightness: Float = 0f,
-    val contrast: Float = 1f,
-    val saturation: Float = 1f,
-    val temperature: Float = 0f,
-    val tint: Float = 0f,
-    val exposure: Float = 0f,
-    val highlights: Float = 0f,
-    val shadows: Float = 0f,
-    val fade: Float = 0f,
-    val sharpness: Float = 0f,
-    val vignette: Float = 0f,
-    val grain: Float = 0f,
-    
-    // Filter
-    val activeFilterIdx: Int = 0,
-    val filterIntensity: Float = 1f,
-    
-    // Speed & Trim
-    val playbackSpeed: Float = 1f,
-    val keepPitch: Boolean = true,
-    val trimStartRatio: Float = 0f,
-    val trimEndRatio: Float = 1f
-)
 
 @HiltViewModel
 class StudioViewModel @Inject constructor() : ViewModel() {
 
-    private val _uiState = MutableStateFlow(StudioUiState())
-    val uiState: StateFlow<StudioUiState> = _uiState.asStateFlow()
-
-    fun updateStatus(log: String) {
-        _uiState.update { it.copy(statusLog = log) }
-    }
-    
-    fun setMediaType(type: String) {
-        _uiState.update { it.copy(mediaType = type) }
-    }
-
-    fun setPlaying(playing: Boolean) {
-        _uiState.update { it.copy(isPlaying = playing) }
-    }
-
-    fun setTab(tab: Int) {
-        _uiState.update { it.copy(currentTab = tab) }
-    }
-
-    fun updateColorGrading(
-        brightness: Float? = null, contrast: Float? = null, saturation: Float? = null,
-        temperature: Float? = null, tint: Float? = null, exposure: Float? = null,
-        highlights: Float? = null, shadows: Float? = null, fade: Float? = null,
-        sharpness: Float? = null, vignette: Float? = null, grain: Float? = null
+    fun extractAudio(
+        context: Context,
+        sourceUri: Uri,
+        onComplete: (String) -> Unit,
+        onError: (String) -> Unit
     ) {
-        _uiState.update { 
-            it.copy(
-                brightness = brightness ?: it.brightness,
-                contrast = contrast ?: it.contrast,
-                saturation = saturation ?: it.saturation,
-                temperature = temperature ?: it.temperature,
-                tint = tint ?: it.tint,
-                exposure = exposure ?: it.exposure,
-                highlights = highlights ?: it.highlights,
-                shadows = shadows ?: it.shadows,
-                fade = fade ?: it.fade,
-                sharpness = sharpness ?: it.sharpness,
-                vignette = vignette ?: it.vignette,
-                grain = grain ?: it.grain
-            )
-        }
-    }
-    
-    fun setFilter(idx: Int, intensity: Float? = null) {
-        _uiState.update { 
-            it.copy(
-                activeFilterIdx = idx,
-                filterIntensity = intensity ?: it.filterIntensity
-            ) 
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val extractor = MediaExtractor()
+                    extractor.setDataSource(context, sourceUri, null)
+                    var audioIdx = -1
+                    var audioFmt: MediaFormat? = null
+                    for (i in 0 until extractor.trackCount) {
+                        val fmt = extractor.getTrackFormat(i)
+                        if (fmt.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
+                            audioIdx = i
+                            audioFmt = fmt
+                            break
+                        }
+                    }
+                    if (audioIdx < 0 || audioFmt == null) {
+                        throw Exception("No audio track found")
+                    }
+                    extractor.selectTrack(audioIdx)
+                    val dir = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC) ?: context.filesDir
+                    val file = File(dir, "OMNIX_Audio_${System.currentTimeMillis()}.m4a")
+                    val muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                    val muxTrack = muxer.addTrack(audioFmt)
+                    muxer.start()
+                    val buf = ByteBuffer.allocate(1024 * 512)
+                    val info = MediaCodec.BufferInfo()
+                    while (true) {
+                        val sz = extractor.readSampleData(buf, 0)
+                        if (sz < 0) break
+                        info.offset = 0
+                        info.size = sz
+                        info.presentationTimeUs = extractor.sampleTime
+                        info.flags = extractor.sampleFlags
+                        muxer.writeSampleData(muxTrack, buf, info)
+                        extractor.advance()
+                    }
+                    muxer.stop()
+                    muxer.release()
+                    extractor.release()
+                    file.absolutePath
+                }
+                onComplete(result)
+            } catch (e: Exception) {
+                onError(e.message ?: "Extraction Failed")
+            }
         }
     }
 
-    fun resetColorGrading() {
-        _uiState.update { 
-            it.copy(
-                brightness = 0f, contrast = 1f, saturation = 1f, temperature = 0f,
-                tint = 0f, exposure = 0f, highlights = 0f, shadows = 0f, fade = 0f,
-                sharpness = 0f, vignette = 0f, grain = 0f, activeFilterIdx = 0
-            )
+    fun captureFrame(
+        context: Context,
+        uri: Uri,
+        positionMs: Long,
+        onComplete: (Bitmap) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val frame = withContext(Dispatchers.IO) {
+                    val retriever = MediaMetadataRetriever()
+                    retriever.setDataSource(context, uri)
+                    val bmp = retriever.getFrameAtTime(positionMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
+                    retriever.release()
+                    bmp
+                }
+                frame?.let { onComplete(it) }
+            } catch (e: Exception) {
+                // Ignore frame capture failure
+            }
         }
     }
 }
