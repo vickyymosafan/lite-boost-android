@@ -366,6 +366,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun SuperpowerCard(title: String, icon: ImageVector, onClick: () -> Unit) {
         OutlinedCard(
