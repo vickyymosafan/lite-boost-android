@@ -33,10 +33,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.work.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
@@ -215,6 +217,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             )
+
+            AutoPilotCard(
+                logs = logs,
+                checkPermissions = { checkPermissions() }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -268,6 +275,54 @@ class MainActivity : ComponentActivity() {
                 Button(onClick = onClick, enabled = buttonEnabled) {
                     Text(buttonText)
                 }
+            }
+        }
+    }
+
+    @Composable
+    fun AutoPilotCard(logs: MutableList<String>, checkPermissions: () -> Unit) {
+        val workManager = WorkManager.getInstance(this@MainActivity)
+        var isAutoPilotEnabled by remember { mutableStateOf(false) }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Storage, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Auto-Pilot Cleaner", style = MaterialTheme.typography.titleMedium)
+                    Text("Pembersihan otomatis setiap 3 hari.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                Switch(
+                    checked = isAutoPilotEnabled,
+                    onCheckedChange = { checked ->
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                            logs.add("Error: Izin All Files Access belum diberikan!")
+                            checkPermissions()
+                        } else {
+                            isAutoPilotEnabled = checked
+                            if (checked) {
+                                val constraints = Constraints.Builder()
+                                    .setRequiresBatteryNotLow(true)
+                                    .build()
+                                val workRequest = PeriodicWorkRequestBuilder<AutoPilotWorker>(3, TimeUnit.DAYS)
+                                    .setConstraints(constraints)
+                                    .build()
+                                workManager.enqueueUniquePeriodicWork(
+                                    "AutoPilotCleaner",
+                                    ExistingPeriodicWorkPolicy.UPDATE,
+                                    workRequest
+                                )
+                                logs.add("🤖 Auto-Pilot DIAKTIFKAN. Jadwal 3 hari didaftarkan.")
+                            } else {
+                                workManager.cancelUniqueWork("AutoPilotCleaner")
+                                logs.add("🤖 Auto-Pilot DIMATIKAN.")
+                            }
+                        }
+                    }
+                )
             }
         }
     }
