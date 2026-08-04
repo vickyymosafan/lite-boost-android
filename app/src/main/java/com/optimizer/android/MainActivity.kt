@@ -25,12 +25,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.MovieCreation
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.VpnLock
@@ -173,6 +175,8 @@ class MainActivity : ComponentActivity() {
         var showVpnDialog by remember { mutableStateOf(false) }
         var showHibernationDialog by remember { mutableStateOf(false) }
         var showBlackholeDialog by remember { mutableStateOf(false) }
+        var showJunkDialog by remember { mutableStateOf(false) }
+        var showRamDialog by remember { mutableStateOf(false) }
 
         val scrollState = rememberScrollState()
 
@@ -195,6 +199,23 @@ class MainActivity : ComponentActivity() {
                 StatusCard(modifier = Modifier.weight(1f), title = "TEMP", value = "${batteryStat.tempCelsius} °C", alert = batteryStat.tempCelsius > 40f)
                 StatusCard(modifier = Modifier.weight(1f), title = "HEALTH", value = batteryStat.healthString.uppercase(), alert = batteryStat.healthString != "Good")
             }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- CORE SYSTEM OPTIMIZERS ---
+            Text("CORE SYSTEM OPTIMIZERS", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SuperpowerCard(
+                title = "JUNK & CACHE CLEANER (2-STAGE)",
+                icon = Icons.Filled.CleaningServices,
+                onClick = { showJunkDialog = true }
+            )
+            SuperpowerCard(
+                title = "RAM SPEED BOOSTER",
+                icon = Icons.Filled.Speed,
+                onClick = { showRamDialog = true }
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -289,13 +310,58 @@ class MainActivity : ComponentActivity() {
         // --- DIALOGS ---
         if (showVpnDialog) {
             NeoDialog(
-                title = "ENABLE DNS SHIELD?",
-                text = "Mengalihkan koneksi Anda melalui AdGuard/Cloudflare DNS untuk memblokir Iklan dan Malware.",
+                title = "AKTIFKAN DNS SHIELD?",
+                text = "Sistem akan mengaktifkan VPN Lokal untuk memblokir seluruh iklan dan situs kotor se-sistem via AdGuard DNS.",
                 onConfirm = { 
                     showVpnDialog = false
-                    requestVpn() 
+                    requestVpn()
                 },
                 onDismiss = { showVpnDialog = false }
+            )
+        }
+        if (showJunkDialog) {
+            NeoDialog(
+                title = "PINDAI & HAPUS CACHE SAMPAH?",
+                text = "Sistem akan memindai berkas .tmp, .log, dan cache sisa aplikasi secara transparan tanpa merusak data penting Anda.",
+                onConfirm = {
+                    showJunkDialog = false
+                    coroutineScope.launch {
+                        isScanning = true
+                        logs.add("MEMULAI SCANNING SAMPAH & CACHE...")
+                        val found = withContext(Dispatchers.IO) {
+                            OptimizerUtils.scanJunk { log -> logs.add(log) }
+                        }
+                        scannedFiles = found
+                        isScanning = false
+                        if (found.isNotEmpty()) {
+                            logs.add("MEMBERSIHKAN ${found.size} BERKAS SAMPAH...")
+                            withContext(Dispatchers.IO) {
+                                OptimizerUtils.deleteJunkFiles(found) { log -> logs.add(log) }
+                            }
+                            storageStat = OptimizerUtils.getStorageStatus()
+                            logs.add("CLEANUP SELESAI! PEMERSIHAN SUKSES.")
+                        } else {
+                            logs.add("PENYIMPANAN SUDAH BERSIH.")
+                        }
+                    }
+                },
+                onDismiss = { showJunkDialog = false }
+            )
+        }
+        if (showRamDialog) {
+            NeoDialog(
+                title = "BOOST RAM & PERFORMANCE?",
+                text = "Sistem akan memicu pembersihan alokasi memori latar belakang dan mengoptimalkan kecepatan RAM.",
+                onConfirm = {
+                    showRamDialog = false
+                    coroutineScope.launch {
+                        logs.add("TRIGGERING RAM OPTIMIZATION & GC...")
+                        System.gc()
+                        ramStat = OptimizerUtils.getRamStatus(this@MainActivity)
+                        logs.add("RAM BOOSTED! FREE RAM: ${ramStat.freeMb} MB")
+                    }
+                },
+                onDismiss = { showRamDialog = false }
             )
         }
         if (showHibernationDialog) {
