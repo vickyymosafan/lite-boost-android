@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OMNIX OS</string>
+    <string name="accessibility_service_description">OMNIX OS Hibernation Engine utilizes accessibility services to safely automate background freezing and closure of unused apps to conserve battery and RAM.</string>
 </resources>
