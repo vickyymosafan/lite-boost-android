@@ -22,11 +22,11 @@ data class MainUiState(
     val storageStat: StorageStatus = StorageStatus(0, 0),
     val ramStat: RamStatus = RamStatus(0, 0),
     val batteryStat: BatteryStatus = BatteryStatus(0f, BatteryHealth.UNKNOWN),
-    val logs: List<String> = listOf("SYSTEM BOOT OK."),
+    val logs: List<String> = listOf("BOOT SISTEM BERHASIL."),
     val isScanning: Boolean = false,
     val activeDialog: DialogType = DialogType.NONE,
     val vpnActive: Boolean = false,
-    val vaultContent: String = "VAULT IS EMPTY."
+    val vaultContent: String = "BRANKAS KOSONG."
 )
 
 @HiltViewModel
@@ -78,7 +78,7 @@ class MainViewModel @Inject constructor(
                 log("MEMBERSIHKAN ${found.size} BERKAS SAMPAH...")
                 systemRepository.deleteJunkFiles(found).collect { msg -> log(msg) }
                 refreshSystemStatus()
-                log("CLEANUP SELESAI! PEMERSIHAN SUKSES.")
+                log("CLEANUP SELESAI! PEMBERSIHAN SUKSES.")
             } else {
                 log("PENYIMPANAN SUDAH BERSIH.")
             }
@@ -89,13 +89,13 @@ class MainViewModel @Inject constructor(
     fun boostRam() {
         viewModelScope.launch {
             _uiState.update { it.copy(activeDialog = DialogType.NONE) }
-            log("TRIGGERING RAM OPTIMIZATION & GC...")
+            log("MEMULAI OPTIMISASI RAM & GC...")
             System.gc()
             
             systemRepository.killBackgroundProcesses().collect { msg -> log(msg) }
             
             refreshSystemStatus()
-            log("RAM BOOSTED! FREE RAM: ${_uiState.value.ramStat.freeMb} MB")
+            log("RAM OPTIMAL! RAM BEBAS: ${_uiState.value.ramStat.freeMb} MB")
         }
     }
 }

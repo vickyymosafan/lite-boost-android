@@ -80,7 +80,7 @@ class SystemRepositoryImpl @Inject constructor(
     override suspend fun scanJunk(): Flow<String> = flow {
         val root = Environment.getExternalStorageDirectory()
         if (root == null || !root.exists()) {
-            emit("Error: External storage not found.")
+            emit("Gagal: Penyimpanan eksternal tidak ditemukan.")
             return@flow
         }
         emit("Memulai pemindaian (Scan) di ${root.absolutePath}...")

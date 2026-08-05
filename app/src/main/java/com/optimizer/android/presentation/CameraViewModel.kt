@@ -32,11 +32,11 @@ class CameraViewModel @Inject constructor(
     }
 
     fun onPhotoSaved() {
-        _uiState.update { it.copy(showToastMessage = "Photo saved!") }
+        _uiState.update { it.copy(showToastMessage = "Foto berhasil disimpan!") }
     }
 
     fun onPhotoError(msg: String) {
-        _uiState.update { it.copy(showToastMessage = "Error: $msg") }
+        _uiState.update { it.copy(showToastMessage = "Gagal: $msg") }
     }
 
     fun clearToastMessage() {

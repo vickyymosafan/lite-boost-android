@@ -351,7 +351,7 @@ class ProStudioActivity : ComponentActivity() {
             .setTransformationRequest(transformRequest)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(c: Composition, r: ExportResult) {
-                    viewModel.saveToMediaStore(this@ProStudioActivity, outputFile, "video/mp4", "Movies/OMNIX")
+                    viewModel.scanAndSaveToGallery(this@ProStudioActivity, outputFile, "video/mp4")
                     onComplete(outputFile.absolutePath)
                 }
                 override fun onError(c: Composition, r: ExportResult, e: ExportException) { onError(e.message ?: "Failed") }
@@ -562,14 +562,14 @@ class ProStudioActivity : ComponentActivity() {
                                 exportVideo(selectedUri!!, (trimStartRatio * durationMs).toLong(), (trimEndRatio * durationMs).toLong(),
                                     expQuality.height, expFps.fps, ColorEngine.buildVideoEffect(combinedMatrix), drawActions, previewW, previewH,
                                     textOverlay, tc, textSize, textHasBg, bgc,
-                                    onProgress = { statusLog = it }, onComplete = { statusLog = "DONE: $it"; Toast.makeText(context, "Video saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" })
+                                    onProgress = { statusLog = it }, onComplete = { statusLog = "SELESAI: $it"; Toast.makeText(context, "Video berhasil disimpan!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" })
                             }
                             mediaType == "image" && photoBitmap != null -> {
                                 val tc = if (textColor == Wh) android.graphics.Color.WHITE else android.graphics.Color.argb(255, (textColor.red*255).toInt(), (textColor.green*255).toInt(), (textColor.blue*255).toInt())
                                 val bgc = android.graphics.Color.argb(255, (textBgColor.red*255).toInt(), (textBgColor.green*255).toInt(), (textBgColor.blue*255).toInt())
                                 val sc = android.graphics.Color.argb(255, (textStrokeColor.red*255).toInt(), (textStrokeColor.green*255).toInt(), (textStrokeColor.blue*255).toInt())
 
-                                viewModel.exportEditedPhoto(
+                                viewModel.exportPhoto(
                                     context = context,
                                     sourceBitmap = photoBitmap!!,
                                     rotation = rotation,
@@ -592,7 +592,7 @@ class ProStudioActivity : ComponentActivity() {
                                     textStrokeWidthPx = textStrokeWidth,
                                     textHasShadow = textHasShadow,
                                     onProgress = { statusLog = it },
-                                    onComplete = { statusLog = "SAVED TO GALLERY: $it"; Toast.makeText(context, "Photo saved to Gallery!", Toast.LENGTH_LONG).show() },
+                                    onComplete = { statusLog = "DISIMPAN KE GALERI: $it"; Toast.makeText(context, "Foto berhasil disimpan ke Galeri!", Toast.LENGTH_LONG).show() },
                                     onError = { statusLog = "ERR: $it" }
                                 )
                             }
@@ -695,7 +695,7 @@ class ProStudioActivity : ComponentActivity() {
                         4 -> PanelDraw(drawActions, redoStack, brushColor, brushWidth, drawTool, onColor = { brushColor = it }, onWidth = { brushWidth = it }, onTool = { drawTool = it },
                             onUndo = { if (drawActions.isNotEmpty()) { redoStack.add(drawActions.removeLast()) } }, onRedo = { if (redoStack.isNotEmpty()) { drawActions.add(redoStack.removeLast()) } }, onClear = { drawActions.clear(); redoStack.clear() })
                         5 -> PanelAudio(volume, isMuted, fadeInSec, fadeOutSec, onVolume = { volume = it }, onMute = { isMuted = it }, onFadeIn = { fadeInSec = it }, onFadeOut = { fadeOutSec = it },
-                            onExtract = { if (selectedUri != null && mediaType == "video") { viewModel.extractAudio(context, selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
+                            onExtract = { if (selectedUri != null && mediaType == "video") { viewModel.extractAudio(context, selectedUri!!, onComplete = { statusLog = "AUDIO: $it"; Toast.makeText(context, "Audio berhasil disimpan!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" }) } })
                         6 -> PanelCrop(rotation, flipH, flipV, onRotate = { rotation = (rotation + it) % 360f }, onFlipH = { flipH = !flipH }, onFlipV = { flipV = !flipV },
                             onReset = { rotation = 0f; flipH = false; flipV = false },
                             onCropRatio = { w, h -> if (photoBitmap != null) { photoBitmap = cropToRatio(photoBitmap!!, w, h); statusLog = "CROPPED ${w.toInt()}:${h.toInt()}" } })

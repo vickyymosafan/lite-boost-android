@@ -55,15 +55,15 @@ class AppEraserActivity : ComponentActivity() {
                     IconButton(onClick = { finish() }, modifier = Modifier.size(32.dp)) { 
                         Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Color.White) 
                     }
-                    Text("DEEP ROOT APP ERASER", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                    Text("PENGHAPUS APLIKASI DEEP ROOT", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("DANGER: 'NUKE' will uninstall the app and forcefully purge all residual cache folders in /sdcard/Android/data & obb.", 
+                Text("PERINGATAN: 'HAPUS' akan mencopot pemasangan aplikasi dan membersihkan paksa semua folder sisa di /sdcard/Android/data & obb.", 
                     color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (uiState.isLoading) {
-                    Text("SCANNING APPS...", color = Color.Green, fontFamily = FontFamily.Monospace)
+                    Text("MEMINDAI APLIKASI...", color = Color.Green, fontFamily = FontFamily.Monospace)
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(uiState.apps) { app ->
@@ -89,7 +89,7 @@ class AppEraserActivity : ComponentActivity() {
                                         modifier = Modifier.height(36.dp)
                                     ) {
                                         Icon(Icons.Filled.Warning, null, modifier = Modifier.size(14.dp))
-                                        Text(" NUKE", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                                        Text(" HAPUS", fontWeight = FontWeight.Black, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -102,7 +102,7 @@ class AppEraserActivity : ComponentActivity() {
 
     private fun nukeApp(pkg: String) {
         // Queue aggressive cleanup
-        val data = workDataOf("package_name" to pkg)
+        val data = workDataOf(PurgeResidualsWorker.KEY_PACKAGE_NAME to pkg)
         val request = OneTimeWorkRequestBuilder<PurgeResidualsWorker>()
             .setInputData(data)
             .build()

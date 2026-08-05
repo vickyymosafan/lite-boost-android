@@ -49,7 +49,7 @@ class StudioViewModel @Inject constructor() : ViewModel() {
      * Renders and exports edited photo with ALL adjustments, filters, drawings, and text burned into it.
      * Also saves/indexes the exported image to the Public Device Gallery via MediaStore & MediaScanner.
      */
-    fun exportEditedPhoto(
+    fun exportPhoto(
         context: Context,
         sourceBitmap: Bitmap,
         rotation: Float,
@@ -260,7 +260,7 @@ class StudioViewModel @Inject constructor() : ViewModel() {
                     resultBmp.recycle()
 
                     // 9. Register with MediaStore / MediaScanner for Public Gallery view
-                    saveToMediaStore(context, file, "image/png", "Pictures/OMNIX")
+                    scanAndSaveToGallery(context, file, "image/png")
                     file.absolutePath
                 }
 
@@ -322,7 +322,7 @@ class StudioViewModel @Inject constructor() : ViewModel() {
                     extractor.release()
 
                     // Index to MediaStore
-                    saveToMediaStore(context, file, "audio/m4a", "Music/OMNIX")
+                    scanAndSaveToGallery(context, file, "audio/m4a")
                     file.absolutePath
                 }
                 onComplete(result)
@@ -358,7 +358,7 @@ class StudioViewModel @Inject constructor() : ViewModel() {
      * Registers and indexes exported media file with MediaStore & MediaScannerConnection
      * so that it instantly appears in the public Android Gallery / Photos / Music apps.
      */
-    fun saveToMediaStore(context: Context, file: File, mimeType: String, relativeSubDir: String) {
+    fun scanAndSaveToGallery(context: Context, file: File, mimeType: String) {
         try {
             MediaScannerConnection.scanFile(
                 context,
@@ -367,6 +367,13 @@ class StudioViewModel @Inject constructor() : ViewModel() {
             ) { path, uri -> }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val relativeSubDir = when {
+                    mimeType.startsWith("image/") -> "Pictures/OMNIX"
+                    mimeType.startsWith("video/") -> "Movies/OMNIX"
+                    mimeType.startsWith("audio/") -> "Music/OMNIX"
+                    else -> Environment.DIRECTORY_DOWNLOADS
+                }
+                
                 val contentValues = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
                     put(MediaStore.MediaColumns.MIME_TYPE, mimeType)

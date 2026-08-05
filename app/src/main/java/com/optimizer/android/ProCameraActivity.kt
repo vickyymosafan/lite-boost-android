@@ -49,7 +49,7 @@ class ProCameraActivity : ComponentActivity() {
         if (isGranted) {
             setContent { CameraScreen() }
         } else {
-            Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Izin kamera ditolak", Toast.LENGTH_SHORT).show()
             finish()
         }
     }
