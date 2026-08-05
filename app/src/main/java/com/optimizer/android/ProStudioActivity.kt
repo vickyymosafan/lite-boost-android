@@ -350,7 +350,10 @@ class ProStudioActivity : ComponentActivity() {
         val transformer = Transformer.Builder(this)
             .setTransformationRequest(transformRequest)
             .addListener(object : Transformer.Listener {
-                override fun onCompleted(c: Composition, r: ExportResult) { onComplete(outputFile.absolutePath) }
+                override fun onCompleted(c: Composition, r: ExportResult) {
+                    viewModel.saveToMediaStore(this@ProStudioActivity, outputFile, "video/mp4", "Movies/OMNIX")
+                    onComplete(outputFile.absolutePath)
+                }
                 override fun onError(c: Composition, r: ExportResult, e: ExportException) { onError(e.message ?: "Failed") }
             }).build()
             
@@ -358,15 +361,7 @@ class ProStudioActivity : ComponentActivity() {
         transformer.start(edited, outputFile.absolutePath)
     }
 
-    // ═══════════ EXPORT: PHOTO (PNG) ═══════════
-    private fun exportPhoto(bitmap: Bitmap, onComplete: (String) -> Unit) {
-        val dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
-        val file = File(dir, "OMNIX_Photo_${System.currentTimeMillis()}.png")
-        try {
-            FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            onComplete(file.absolutePath)
-        } catch (e: Exception) { Toast.makeText(this, "Export error: ${e.message}", Toast.LENGTH_SHORT).show() }
-    }
+
 
 
 
@@ -569,8 +564,37 @@ class ProStudioActivity : ComponentActivity() {
                                     textOverlay, tc, textSize, textHasBg, bgc,
                                     onProgress = { statusLog = it }, onComplete = { statusLog = "DONE: $it"; Toast.makeText(context, "Video saved!", Toast.LENGTH_LONG).show() }, onError = { statusLog = "ERR: $it" })
                             }
-                            mediaType == "image" && photoBitmap != null -> { statusLog = "EXPORTING PHOTO..."
-                                exportPhoto(photoBitmap!!) { statusLog = "SAVED: $it"; Toast.makeText(context, "Photo saved!", Toast.LENGTH_LONG).show() }
+                            mediaType == "image" && photoBitmap != null -> {
+                                val tc = if (textColor == Wh) android.graphics.Color.WHITE else android.graphics.Color.argb(255, (textColor.red*255).toInt(), (textColor.green*255).toInt(), (textColor.blue*255).toInt())
+                                val bgc = android.graphics.Color.argb(255, (textBgColor.red*255).toInt(), (textBgColor.green*255).toInt(), (textBgColor.blue*255).toInt())
+                                val sc = android.graphics.Color.argb(255, (textStrokeColor.red*255).toInt(), (textStrokeColor.green*255).toInt(), (textStrokeColor.blue*255).toInt())
+
+                                viewModel.exportEditedPhoto(
+                                    context = context,
+                                    sourceBitmap = photoBitmap!!,
+                                    rotation = rotation,
+                                    flipH = flipH,
+                                    flipV = flipV,
+                                    colorMatrix = combinedMatrix,
+                                    vignette = vignette,
+                                    grain = grain,
+                                    drawActions = drawActions,
+                                    previewW = previewW,
+                                    previewH = previewH,
+                                    textOverlay = textOverlay,
+                                    textColorInt = tc,
+                                    textSizePx = textSize,
+                                    textBold = textBold,
+                                    textHasBg = textHasBg,
+                                    textBgColorInt = bgc,
+                                    textHasStroke = textHasStroke,
+                                    textStrokeColorInt = sc,
+                                    textStrokeWidthPx = textStrokeWidth,
+                                    textHasShadow = textHasShadow,
+                                    onProgress = { statusLog = it },
+                                    onComplete = { statusLog = "SAVED TO GALLERY: $it"; Toast.makeText(context, "Photo saved to Gallery!", Toast.LENGTH_LONG).show() },
+                                    onError = { statusLog = "ERR: $it" }
+                                )
                             }
                         }
                     }, shape = RoundedCornerShape(4.dp), modifier = Modifier.height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = Ac, contentColor = Bk), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Icon(Icons.Filled.FileDownload, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("EXPORT", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
