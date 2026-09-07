@@ -2,7 +2,6 @@ package com.optimizer.android
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -13,61 +12,48 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderSpecial
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.MovieCreation
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
 import com.optimizer.android.presentation.AppEraserActivity
-import com.optimizer.android.domain.model.BatteryHealth
-import com.optimizer.android.presentation.MainViewModel
-import com.optimizer.android.presentation.MainUiState
 import com.optimizer.android.presentation.DialogType
-import dagger.hilt.android.AndroidEntryPoint
-
-import com.optimizer.android.ui.components.CrispWhite
-import com.optimizer.android.ui.components.NeonGreen
+import com.optimizer.android.presentation.MainUiState
+import com.optimizer.android.presentation.MainViewModel
+import com.optimizer.android.ui.components.BrutalBar
 import com.optimizer.android.ui.components.NeoDialog
-import com.optimizer.android.ui.components.PitchBlack
+import com.optimizer.android.ui.components.SectionHeader
 import com.optimizer.android.ui.components.StatusCard
 import com.optimizer.android.ui.components.SuperpowerCard
+import com.optimizer.android.ui.components.TerminalLog
+import com.optimizer.android.ui.theme.FeatureType
+import com.optimizer.android.ui.theme.OmnixTheme
+import com.optimizer.android.ui.theme.OmnixThemeColors
+import com.optimizer.android.ui.theme.OmnixType
+import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
-    
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -91,15 +77,7 @@ class MainActivity : ComponentActivity() {
         viewModel.loadVaultContent()
 
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    background = PitchBlack,
-                    surface = PitchBlack,
-                    onBackground = CrispWhite,
-                    onSurface = CrispWhite,
-                    primary = CrispWhite
-                )
-            ) {
+            OmnixTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -146,7 +124,7 @@ class MainActivity : ComponentActivity() {
         viewModel.log("REQUESTING NOTIFICATION LISTENER...")
         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
-    
+
     private fun requestWorkProfile() {
         viewModel.log("PROVISIONING WORK PROFILE...")
         try {
@@ -164,149 +142,157 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun OptimizerDashboard(uiState: MainUiState) {
+        val colors = OmnixThemeColors.colors
         val scrollState = rememberScrollState()
 
-        Column(modifier = Modifier
-            .padding(16.dp)
-            .verticalScroll(scrollState)
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .verticalScroll(scrollState)
         ) {
-            Text("OMNIX OS", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-            Text("GOD-TIER SUPERAPP • NO ROOT REQUIRED", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // --- SYSTEM STATUS DASHBOARD ---
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusCard(modifier = Modifier.weight(1f), title = "STORAGE", value = "${uiState.storageStat.freeMb} MB")
-                StatusCard(modifier = Modifier.weight(1f), title = "RAM", value = "${uiState.ramStat.freeMb} MB")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusCard(modifier = Modifier.weight(1f), title = "TEMP", value = "${uiState.batteryStat.tempCelsius} °C", alert = uiState.batteryStat.tempCelsius > 40f)
-                StatusCard(modifier = Modifier.weight(1f), title = "HEALTH", value = uiState.batteryStat.health.name, alert = uiState.batteryStat.health.name != "GOOD")
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
+            Text("OMNIX OS", style = OmnixType.display, color = colors.ink)
+            Text("GOD-TIER SUPERAPP • NO ROOT REQUIRED", style = OmnixType.label, color = colors.grid)
 
-            // --- CORE SYSTEM OPTIMIZERS ---
-            Text("CORE SYSTEM OPTIMIZERS", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            // 01 / SYSTEM STATUS
+            SectionHeader("01", "SYSTEM STATUS")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard(Modifier.weight(1f), "STORAGE", "${uiState.storageStat.freeMb} MB", index = 1)
+                StatusCard(Modifier.weight(1f), "RAM", "${uiState.ramStat.freeMb} MB", index = 2)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard(
+                    Modifier.weight(1f), "TEMP",
+                    "${uiState.batteryStat.tempCelsius} °C",
+                    alert = uiState.batteryStat.tempCelsius > 40f, index = 3
+                )
+                StatusCard(
+                    Modifier.weight(1f), "HEALTH",
+                    uiState.batteryStat.health.name,
+                    alert = uiState.batteryStat.health.name != "GOOD", index = 4
+                )
+            }
 
+            // 02 / CORE OPTIMIZERS
+            SectionHeader("02", "CORE OPTIMIZERS")
             SuperpowerCard(
                 title = "JUNK & CACHE CLEANER (2-STAGE)",
                 icon = Icons.Filled.CleaningServices,
-                onClick = { viewModel.toggleDialog(DialogType.JUNK) }
+                onClick = { viewModel.toggleDialog(DialogType.JUNK) },
+                accent = colors.accent(FeatureType.CLEANER),
+                index = 5
             )
+            AnimatedVisibility(
+                visible = uiState.isScanning,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                BrutalBar(
+                    progress = uiState.scanProgress,
+                    accent = colors.accent(FeatureType.CLEANER),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             SuperpowerCard(
                 title = "RAM SPEED BOOSTER",
                 icon = Icons.Filled.Speed,
-                onClick = { viewModel.toggleDialog(DialogType.RAM) }
+                onClick = { viewModel.toggleDialog(DialogType.RAM) },
+                accent = colors.accent(FeatureType.CLEANER),
+                index = 6
             )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // --- ULTIMATE SUPERPOWERS ---
-            Text("ULTIMATE SUPERPOWERS", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(8.dp))
 
+            // 03 / SUPERPOWERS
+            SectionHeader("03", "SUPERPOWERS")
             SuperpowerCard(
                 title = "DEEP ROOT APP ERASER",
                 icon = Icons.Filled.Delete,
-                onClick = { startActivity(Intent(this@MainActivity, AppEraserActivity::class.java)) }
+                onClick = { startActivity(Intent(this@MainActivity, AppEraserActivity::class.java)) },
+                accent = colors.accent(FeatureType.CLEANER),
+                index = 7
             )
             SuperpowerCard(
                 title = "WORK PROFILE ENGINE",
                 icon = Icons.Filled.FolderSpecial,
-                onClick = { viewModel.toggleDialog(DialogType.HIBERNATION) } 
+                onClick = { viewModel.toggleDialog(DialogType.HIBERNATION) },
+                index = 8 // accent default = ink (netral sistem)
             )
             SuperpowerCard(
                 title = "ANTI-DELETE MESSAGE VAULT",
                 icon = Icons.Filled.Message,
-                onClick = { 
+                onClick = {
                     viewModel.loadVaultContent()
-                    viewModel.toggleDialog(DialogType.BLACKHOLE) 
-                } 
+                    viewModel.toggleDialog(DialogType.BLACKHOLE)
+                },
+                accent = colors.accent(FeatureType.VAULT),
+                index = 9
             )
             SuperpowerCard(
                 title = "DNS-LEVEL WEB SHIELD",
                 icon = Icons.Filled.CloudOff,
-                onClick = { viewModel.toggleDialog(DialogType.VPN) } 
+                onClick = { viewModel.toggleDialog(DialogType.VPN) },
+                accent = colors.accent(FeatureType.SHIELD),
+                index = 10
             )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // --- PRO FEATURES ---
-            Text("PRO FEATURES", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(8.dp))
 
+            // 04 / PRO FEATURES
+            SectionHeader("04", "PRO FEATURES")
             SuperpowerCard(
                 title = "iCLONE PRO CAMERA",
                 icon = Icons.Filled.CameraAlt,
-                onClick = { startActivity(Intent(this@MainActivity, ProCameraActivity::class.java)) }
+                onClick = { startActivity(Intent(this@MainActivity, ProCameraActivity::class.java)) },
+                accent = colors.accent(FeatureType.CAMERA),
+                index = 11
             )
-            
             SuperpowerCard(
                 title = "PRO STUDIO AI (EDITOR)",
                 icon = Icons.Filled.MovieCreation,
-                onClick = { startActivity(Intent(this@MainActivity, ProStudioActivity::class.java)) }
+                onClick = { startActivity(Intent(this@MainActivity, ProStudioActivity::class.java)) },
+                accent = colors.accent(FeatureType.STUDIO),
+                index = 12
             )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // --- CONSOLE LOG ---
-            Text("SYSTEM LOGS", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .background(PitchBlack)
-                    .border(2.dp, CrispWhite, RoundedCornerShape(0.dp))
-                    .padding(12.dp)
-            ) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(uiState.logs.reversed()) { log ->
-                        Text(text = "> $log", color = NeonGreen, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // --- LICENSE & CREDITS ---
+
+            // 05 / SYSTEM LOGS
+            SectionHeader("05", "SYSTEM LOGS")
+            TerminalLog(logs = uiState.logs)
+
+            // LICENSE (dipertahankan, styling tetap brutalism)
+            Spacer(Modifier.height(16.dp))
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(0.dp),
-                border = BorderStroke(2.dp, CrispWhite),
-                colors = CardDefaults.outlinedCardColors(containerColor = PitchBlack)
+                shape = RectangleShape,
+                border = BorderStroke(2.dp, colors.ink),
+                colors = CardDefaults.outlinedCardColors(containerColor = colors.base)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("LICENSE & COPYRIGHT", fontWeight = FontWeight.Black, fontSize = 14.sp, color = CrispWhite, letterSpacing = 1.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(Modifier.padding(16.dp)) {
+                    Text("LICENSE & COPYRIGHT", style = OmnixType.title, color = colors.ink)
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = "© 2026 vickymosafan. All Rights Reserved.\n\n" +
-                               "This software (OMNIX OS) and its God-Tier Superpowers (Work Profile Engine, Anti-Delete Vault, DNS Web Shield, iClone Pro Camera, Pro Studio AI) are the exclusive intellectual property of vickymosafan.\n\n" +
-                               "Unauthorized copying, modification, distribution, or use of this software without explicit permission is strictly prohibited.",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = Color.Gray,
-                        lineHeight = 14.sp
+                            "This software (OMNIX OS) and its God-Tier Superpowers (Work Profile Engine, Anti-Delete Vault, DNS Web Shield, iClone Pro Camera, Pro Studio AI) are the exclusive intellectual property of vickymosafan.\n\n" +
+                            "Unauthorized copying, modification, distribution, or use of this software without explicit permission is strictly prohibited.",
+                        style = OmnixType.mono,
+                        color = colors.grid
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
         }
 
-        // --- DIALOGS ---
+        // --- DIALOGS (accent per fitur) ---
+        val cleanAccent = colors.accent(FeatureType.CLEANER)
+        val shieldAccent = colors.accent(FeatureType.SHIELD)
+        val vaultAccent = colors.accent(FeatureType.VAULT)
+
         if (uiState.activeDialog == DialogType.VPN) {
             NeoDialog(
                 title = "AKTIFKAN DNS SHIELD?",
                 text = "Sistem akan mengaktifkan VPN Lokal untuk memblokir seluruh iklan dan situs kotor se-sistem via AdGuard DNS.",
-                onConfirm = { 
+                onConfirm = {
                     viewModel.toggleDialog(DialogType.NONE)
                     requestVpn()
                 },
-                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) },
+                accent = shieldAccent
             )
         }
         if (uiState.activeDialog == DialogType.JUNK) {
@@ -314,7 +300,8 @@ class MainActivity : ComponentActivity() {
                 title = "PINDAI & HAPUS CACHE SAMPAH?",
                 text = "Sistem akan memindai berkas .tmp, .log, dan cache sisa aplikasi secara transparan tanpa merusak data penting Anda.",
                 onConfirm = { viewModel.startJunkScan() },
-                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) },
+                accent = cleanAccent
             )
         }
         if (uiState.activeDialog == DialogType.RAM) {
@@ -322,14 +309,15 @@ class MainActivity : ComponentActivity() {
                 title = "BOOST RAM & PERFORMANCE?",
                 text = "Sistem akan memicu pembersihan alokasi memori latar belakang dan mengoptimalkan kecepatan RAM.",
                 onConfirm = { viewModel.boostRam() },
-                onDismiss = { viewModel.toggleDialog(DialogType.NONE) }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) },
+                accent = cleanAccent
             )
         }
         if (uiState.activeDialog == DialogType.HIBERNATION) {
             NeoDialog(
                 title = "CREATE WORK PROFILE?",
                 text = "Sistem akan membuat ruang ganda terpisah untuk mengkloning aplikasi.",
-                onConfirm = { 
+                onConfirm = {
                     viewModel.toggleDialog(DialogType.NONE)
                     requestWorkProfile()
                 },
@@ -337,39 +325,23 @@ class MainActivity : ComponentActivity() {
             )
         }
         if (uiState.activeDialog == DialogType.BLACKHOLE) {
-            AlertDialog(
-                onDismissRequest = { viewModel.toggleDialog(DialogType.NONE) },
-                shape = RoundedCornerShape(0.dp),
-                containerColor = PitchBlack,
-                title = { Text("ANTI-DELETE VAULT", fontWeight = FontWeight.Black, color = CrispWhite) },
-                text = {
-                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                        item {
-                            Text(uiState.vaultContent, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = CrispWhite)
-                        }
-                    }
+            NeoDialog(
+                title = "ANTI-DELETE VAULT",
+                text = "",
+                onConfirm = {
+                    viewModel.toggleDialog(DialogType.NONE)
+                    requestNotificationAccess()
                 },
-                confirmButton = {
-                    Button(
-                        onClick = { 
-                            viewModel.toggleDialog(DialogType.NONE)
-                            requestNotificationAccess() 
-                        },
-                        shape = RoundedCornerShape(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CrispWhite, contentColor = PitchBlack)
-                    ) {
-                        Text("ENABLE INTERCEPTOR", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    OutlinedButton(
-                        onClick = { viewModel.toggleDialog(DialogType.NONE) },
-                        shape = RoundedCornerShape(0.dp),
-                        border = BorderStroke(2.dp, CrispWhite),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)
-                    ) {
-                        Text("TUTUP", fontWeight = FontWeight.Bold)
-                    }
+                onDismiss = { viewModel.toggleDialog(DialogType.NONE) },
+                accent = vaultAccent,
+                confirmLabel = "ENABLE INTERCEPTOR",
+                content = {
+                    Text(
+                        uiState.vaultContent,
+                        style = OmnixType.mono,
+                        color = colors.ink,
+                        modifier = Modifier.heightIn(max = 300.dp)
+                    )
                 }
             )
         }

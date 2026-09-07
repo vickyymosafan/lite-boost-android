@@ -184,11 +184,6 @@ fun SuperpowerCard(
     }
 }
 
-// ---- DEPRECATED legacy color tokens (dihapus di Task 10) ----
-val PitchBlack = Color(0xFF000000)
-val CrispWhite = Color(0xFFFFFFFF)
-val NeonGreen = Color(0xFF00FF00)
-
 @Composable
 fun NeoDialog(
     title: String,
