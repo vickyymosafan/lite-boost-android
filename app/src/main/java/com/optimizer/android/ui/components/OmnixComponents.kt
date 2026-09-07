@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -13,21 +14,26 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.optimizer.android.ui.theme.OmnixMotion
 import com.optimizer.android.ui.theme.OmnixThemeColors
 import com.optimizer.android.ui.theme.OmnixHaptics
@@ -98,20 +104,80 @@ fun StatusCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SuperpowerCard(title: String, icon: ImageVector, onClick: () -> Unit) {
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        shape = RoundedCornerShape(0.dp),
-        border = BorderStroke(2.dp, CrispWhite),
-        colors = CardDefaults.outlinedCardColors(containerColor = PitchBlack),
-        onClick = onClick
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = CrispWhite)
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = CrispWhite)
+fun SuperpowerCard(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    accent: Color? = null,
+    index: Int = 0
+) {
+    val colors = OmnixThemeColors.colors
+    val rail = accent ?: colors.ink
+    val haptics = LocalHapticFeedback.current
+    var pressed by remember { mutableStateOf(false) }
+    var pressX by remember { mutableStateOf(0.5f) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) OmnixMotion.pressedScale else 1f,
+        animationSpec = OmnixMotion.snapSpring,
+        label = "pressScale"
+    )
+    val shadowAlpha by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
+        animationSpec = OmnixMotion.quick(),
+        label = "shadowAlpha"
+    )
+
+    StaggerIn(index, modifier.fillMaxWidth()) {
+        Box(Modifier.padding(bottom = 8.dp)) {
+            // Hard accent shadow (glow brutalism) — muncul saat pressed
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .offset(x = 4.dp, y = 4.dp)
+                    .background(rail)
+                    .alpha(shadowAlpha)
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = scale; scaleY = scale
+                        translationX = ((pressX - 0.5f) * 4f).dp.toPx()
+                    }
+                    .border(2.dp, colors.ink, RectangleShape)
+                    .background(colors.base)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                pressed = true
+                                pressX = (it.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                OmnixHaptics.tick(haptics)
+                                tryAwaitRelease()
+                                pressed = false
+                            },
+                            onTap = { onClick() }
+                        )
+                    }
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .border(2.dp, colors.ink, RectangleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = rail)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    // Accent rail kiri ikon
+                    Box(Modifier.width(4.dp).height(28.dp).background(rail))
+                    Spacer(Modifier.width(12.dp))
+                    Text(title, style = OmnixType.title, color = colors.ink)
+                }
+            }
         }
     }
 }
