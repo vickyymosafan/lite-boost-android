@@ -18,9 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
@@ -31,13 +31,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.optimizer.android.ui.theme.OmnixMotion
 import com.optimizer.android.ui.theme.OmnixThemeColors
 import com.optimizer.android.ui.theme.OmnixHaptics
 import com.optimizer.android.ui.theme.OmnixType
+import kotlinx.coroutines.launch
 
 // Staggered entrance — fade + slide-up, jeda 40ms antar item
 @Composable
@@ -188,33 +190,111 @@ val CrispWhite = Color(0xFFFFFFFF)
 val NeonGreen = Color(0xFF00FF00)
 
 @Composable
-fun NeoDialog(title: String, text: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+fun NeoDialog(
+    title: String,
+    text: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    accent: Color? = null,
+    confirmLabel: String = "GASKAN",
+    content: (@Composable () -> Unit)? = null
+) {
+    val colors = OmnixThemeColors.colors
+    val accentColor = accent ?: colors.ink
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val scrim by animateFloatAsState(
+        targetValue = if (shown) 0.75f else 0f,
+        animationSpec = OmnixMotion.quick(),
+        label = "scrim"
+    )
+    val contentScale by animateFloatAsState(
+        targetValue = if (shown) 1f else 0.9f,
+        animationSpec = OmnixMotion.dialogSpring,
+        label = "dialogScale"
+    )
+
+    Dialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(0.dp),
-        containerColor = PitchBlack,
-        titleContentColor = CrispWhite,
-        textContentColor = CrispWhite,
-        title = { Text(title, fontWeight = FontWeight.Black) },
-        text = { Text(text, fontFamily = FontFamily.Monospace) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm, 
-                shape = RoundedCornerShape(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CrispWhite, contentColor = PitchBlack)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(colors.base.copy(alpha = scrim))
+                .pointerInput(Unit) { detectTapGestures { onDismiss() } }
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { scaleX = contentScale; scaleY = contentScale }
+                    .border(2.dp, colors.ink, RectangleShape)
+                    .background(colors.base)
             ) {
-                Text("GASKAN", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(0.dp),
-                border = BorderStroke(2.dp, CrispWhite),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = CrispWhite)
-            ) {
-                Text("BATAL", fontWeight = FontWeight.Bold)
+                Box(Modifier.fillMaxWidth().height(6.dp).background(accentColor))
+                Column(Modifier.padding(20.dp)) {
+                    Text(title, style = OmnixType.title, color = colors.ink)
+                    Spacer(Modifier.height(10.dp))
+                    if (content != null) {
+                        content()
+                    } else {
+                        Text(text, style = OmnixType.mono, color = colors.grid)
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Row {
+                        Button(
+                            onClick = {
+                                scope.launch { OmnixHaptics.doubleTick(haptics) }
+                                onConfirm()
+                            },
+                            shape = RectangleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = accentColor, contentColor = colors.base)
+                        ) { Text(confirmLabel, fontWeight = FontWeight.Bold) }
+                        Spacer(Modifier.width(10.dp))
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RectangleShape,
+                            border = BorderStroke(2.dp, colors.ink),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.ink)
+                        ) { Text("BATAL", fontWeight = FontWeight.Bold) }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+fun SectionHeader(number: String, title: String, modifier: Modifier = Modifier) {
+    val colors = OmnixThemeColors.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text("$number /", style = OmnixType.label, color = colors.grid)
+        Spacer(Modifier.width(8.dp))
+        Text(title.uppercase(), style = OmnixType.title, color = colors.ink)
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.weight(1f).height(2.dp).background(colors.ink))
+    }
+}
+
+@Composable
+fun BrutalBar(progress: Float, accent: Color, modifier: Modifier = Modifier) {
+    val total = 16
+    val filled = (progress.coerceIn(0f, 1f) * total).toInt()
+    val bar = "█".repeat(filled) + "░".repeat(total - filled)
+    Text(
+        "$bar ${ (progress.coerceIn(0f, 1f) * 100).toInt() }%",
+        style = OmnixType.mono,
+        color = accent,
+        modifier = modifier
     )
 }
