@@ -1,0 +1,3 @@
+OMNIX OS bundled fonts — all under SIL Open Font License 1.1:
+- Space Grotesk (c) Florian Karsten — https://github.com/floriankarsten/space-grotesk
+- JetBrains Mono (c) JetBrains — https://github.com/JetBrains/JetBrainsMono
