@@ -1,6 +1,6 @@
 package com.optimizer.android.ui.theme
 
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
@@ -17,8 +17,8 @@ object OmnixMotion {
     const val EMPHASIS = 350
     const val STAGGER_MS = 40L
 
-    val ambient: CubicBezierEasing = FastOutSlowInEasing
-    val linear: LinearEasing = LinearEasing
+    val ambient: Easing = FastOutSlowInEasing
+    val linear: Easing = LinearEasing
 
     fun <T> quick(): TweenSpec<T> = tween(QUICK, easing = ambient)
     fun <T> standard(): TweenSpec<T> = tween(STANDARD, easing = ambient)
