@@ -24,6 +24,7 @@ data class MainUiState(
     val batteryStat: BatteryStatus = BatteryStatus(0f, BatteryHealth.UNKNOWN),
     val logs: List<String> = listOf("BOOT SISTEM BERHASIL."),
     val isScanning: Boolean = false,
+    val scanProgress: Float = 0f,
     val activeDialog: DialogType = DialogType.NONE,
     val vpnActive: Boolean = false,
     val vaultContent: String = "BRANKAS KOSONG."
@@ -68,21 +69,27 @@ class MainViewModel @Inject constructor(
 
     fun startJunkScan() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanning = true, activeDialog = DialogType.NONE) }
+            _uiState.update { it.copy(isScanning = true, scanProgress = 0f, activeDialog = DialogType.NONE) }
             log("MEMULAI SCANNING SAMPAH & CACHE...")
-            
-            systemRepository.scanJunk().collect { msg -> log(msg) }
+
+            systemRepository.scanJunk().collect { msg ->
+                log(msg)
+                _uiState.update { it.copy(scanProgress = (it.scanProgress + 0.05f).coerceAtMost(0.95f)) }
+            }
             val found = systemRepository.getJunkFiles()
-            
+
             if (found.isNotEmpty()) {
                 log("MEMBERSIHKAN ${found.size} BERKAS SAMPAH...")
-                systemRepository.deleteJunkFiles(found).collect { msg -> log(msg) }
+                systemRepository.deleteJunkFiles(found).collect { msg ->
+                    log(msg)
+                    _uiState.update { it.copy(scanProgress = (it.scanProgress + 0.05f).coerceAtMost(0.95f)) }
+                }
                 refreshSystemStatus()
                 log("CLEANUP SELESAI! PEMBERSIHAN SUKSES.")
             } else {
                 log("PENYIMPANAN SUDAH BERSIH.")
             }
-            _uiState.update { it.copy(isScanning = false) }
+            _uiState.update { it.copy(scanProgress = 1f, isScanning = false) }
         }
     }
 
