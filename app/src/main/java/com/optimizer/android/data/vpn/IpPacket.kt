@@ -15,6 +15,7 @@ object IpPacket {
         if (raw.size < 28) return null
         if (((raw[0].toInt() shr 4) and 0xF) != 4) return null
         val ihl = (raw[0].toInt() and 0xF) * 4
+        if (ihl < 20) return null
         if (raw.size < ihl + 8) return null
         if ((raw[9].toInt() and 0xFF) != 17) return null
         val src = raw.copyOfRange(12, 16)
@@ -65,6 +66,6 @@ object IpPacket {
         }
         if (count % 2 == 1) sum += (data[end - 1].toInt() and 0xFF) shl 8
         while (sum shr 16 != 0) sum = (sum and 0xFFFF) + (sum shr 16)
-        return sum.inv() and 0xFFFF
+        return (sum.inv() and 0xFFFFL).toInt()
     }
 }
