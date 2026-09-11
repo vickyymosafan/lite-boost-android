@@ -1,6 +1,7 @@
 plugins {
     id("com.android.test")
     id("org.jetbrains.kotlin.android")
+    id("androidx.baselineprofile")
 }
 
 android {
@@ -18,7 +19,6 @@ android {
     }
     targetProjectPath = ":app"
     experimentalProperties["android.experimental.self-instrumenting"] = true
-    buildTypes { create("benchmark") { isDebuggable = true } }
     testOptions.managedDevices.localDevices.create("pixel6Api34") {
         device = "Pixel 6"
         apiLevel = 34
@@ -26,10 +26,9 @@ android {
     }
 }
 
-androidComponents {
-    beforeVariants(selector().all()) {
-        it.enable = it.buildType == "benchmark"
-    }
+baselineProfile {
+    managedDevices += "pixel6Api34"
+    useConnectedDevices = false
 }
 
 dependencies {

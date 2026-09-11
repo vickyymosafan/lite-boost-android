@@ -19,7 +19,7 @@ class StartupBenchmark {
     fun startupWithProfile() = rule.measureRepeated(
         packageName = "com.optimizer.android",
         metrics = listOf(StartupTimingMetric()),
-        compilationMode = CompilationMode.Partial(BaselineProfileMode.Require),
+        compilationMode = CompilationMode.Partial(BaselineProfileMode.UseIfAvailable),
         startupMode = StartupMode.COLD,
         iterations = 5
     ) {
