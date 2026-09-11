@@ -20,9 +20,9 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Generate baseline profile
-        run: gradle :app:generateBaselineProfile
+        run: gradle :app:generateBaselineProfile -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
       - name: Run macrobenchmarks
-        run: gradle :baselineprofile:pixel6Api34BenchmarkReleaseAndroidTest
+        run: gradle :baselineprofile:pixel6Api34BenchmarkReleaseAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
