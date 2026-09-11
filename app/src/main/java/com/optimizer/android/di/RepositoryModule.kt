@@ -1,10 +1,12 @@
 package com.optimizer.android.di
 
 import com.optimizer.android.data.repository.AppRepositoryImpl
+import com.optimizer.android.data.repository.DnsShieldRepositoryImpl
 import com.optimizer.android.data.repository.MediaRepositoryImpl
 import com.optimizer.android.data.repository.NotificationRepositoryImpl
 import com.optimizer.android.data.repository.SystemRepositoryImpl
 import com.optimizer.android.domain.repository.AppRepository
+import com.optimizer.android.domain.repository.DnsShieldRepository
 import com.optimizer.android.domain.repository.MediaRepository
 import com.optimizer.android.domain.repository.NotificationRepository
 import com.optimizer.android.domain.repository.SystemRepository
@@ -39,4 +41,8 @@ interface RepositoryModule {
     @Binds
     @Singleton
     fun bindVpnConfigRepository(vpnConfigRepositoryImpl: VpnConfigRepositoryImpl): VpnConfigRepository
+
+    @Binds
+    @Singleton
+    fun bindDnsShieldRepository(dnsShieldRepositoryImpl: DnsShieldRepositoryImpl): DnsShieldRepository
 }

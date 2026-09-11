@@ -16,6 +16,9 @@
     <!-- Permission for Deep Root App Eraser -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- Permission for DNS Shield filter list updates -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".OmnixApplication"
         android:requestLegacyExternalStorage="true"
@@ -39,6 +42,8 @@
         <activity android:name=".ProStudioActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
         
         <activity android:name=".presentation.AppEraserActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity android:name=".presentation.ShieldActivity" android:exported="false" />
 
         <service
             android:name=".LocalFirewallService"
