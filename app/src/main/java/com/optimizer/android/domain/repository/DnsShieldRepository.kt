@@ -14,6 +14,8 @@ interface DnsShieldRepository {
     val paused: StateFlow<Boolean>
     val lastUpdate: StateFlow<Long?>
     val engineVersion: StateFlow<Int>
+    val allowlist: StateFlow<Set<String>>
+    val rulesReady: StateFlow<Boolean>
 
     /** Keputusan untuk satu domain. Dipanggil engine loop per query. */
     fun checkDomain(domain: String): ShieldDecision
@@ -22,7 +24,7 @@ interface DnsShieldRepository {
     fun incrementAllowed()
     fun recordBlocked(domain: String, listTitle: String)
     fun allowlistSnapshot(): List<String>
-    fun reloadLists()
+    fun reloadLists(changed: FilterListId? = null)
     suspend fun updateLists(): Boolean
     fun setPaused(value: Boolean)
     fun setListEnabled(id: FilterListId, enabled: Boolean)

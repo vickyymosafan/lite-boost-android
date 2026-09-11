@@ -19,6 +19,8 @@ class ShieldViewModel @Inject constructor(
     val listStatuses = dnsShieldRepository.listStatuses
     val paused = dnsShieldRepository.paused
     val lastUpdate = dnsShieldRepository.lastUpdate
+    val allowlist = dnsShieldRepository.allowlist
+    val rulesReady = dnsShieldRepository.rulesReady
     val vpnRunning = LocalFirewallService.running
 
     fun refreshLists() = dnsShieldRepository.reloadLists()
