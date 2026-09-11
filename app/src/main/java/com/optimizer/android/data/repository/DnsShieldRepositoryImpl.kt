@@ -2,6 +2,7 @@ package com.optimizer.android.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.optimizer.android.data.filter.FilterListParser
 import com.optimizer.android.data.filter.FilterListStore
 import com.optimizer.android.domain.model.BlockedLogEntry
@@ -11,8 +12,10 @@ import com.optimizer.android.domain.model.ShieldDecision
 import com.optimizer.android.domain.model.ShieldStats
 import com.optimizer.android.domain.repository.DnsShieldRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,8 +68,15 @@ class DnsShieldRepositoryImpl @Inject constructor(
 
     private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val loadDispatcher = Dispatchers.Default.limitedParallelism(1)
+
+    private val initFailureHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("DnsShield", "Initial shield list load failed", throwable)
+    }
+
     init {
-        engineScope.launch {
+        engineScope.launch(loadDispatcher + initFailureHandler) {
             loadLists(null)
             _rulesReady.value = true
         }
@@ -102,7 +112,7 @@ class DnsShieldRepositoryImpl @Inject constructor(
     }
 
     override fun reloadLists(changed: FilterListId?) {
-        engineScope.launch { loadLists(changed) }
+        engineScope.launch(loadDispatcher) { loadLists(changed) }
     }
 
     private fun loadLists(changed: FilterListId?) {
