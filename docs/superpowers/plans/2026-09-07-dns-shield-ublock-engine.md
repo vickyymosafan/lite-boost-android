@@ -82,7 +82,7 @@ git commit -m "feat(shield): bundle EasyList, EasyPrivacy, AdGuard DNS filter li
 
 **Interfaces:**
 - Produces (Task 3â€“10 mengonsumsi persis):
-  - `enum class FilterListId(val title: String, val assetFile: String, val updateUrl: String)` â€” EASYLIST("EasyList","easylist.txt","https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt"), EASYPRIVACY("EasyPrivacy","easyprivacy.txt","https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt"), ADGUARD_DNS("AdGuard DNS","adguard_dns.txt","https://raw.githubusercontent.com/AdguardTeam/AdguardSDNSFilter/master/Filters/AdGuardDNSFilter.txt")
+  - `enum class FilterListId(val title: String, val assetFile: String, val updateUrl: String)` â€” EASYLIST("EasyList","easylist.txt","https://easylist.to/easylist/easylist.txt"), EASYPRIVACY("EasyPrivacy","easyprivacy.txt","https://easylist.to/easylist/easyprivacy.txt"), ADGUARD_DNS("AdGuard DNS","adguard_dns.txt","https://raw.githubusercontent.com/AdguardTeam/AdGuardSDNSFilter/gh-pages/Filters/filter.txt")
   - `data class ShieldStats(total, allowed, blocked, ignored: Long)`
   - `data class BlockedLogEntry(domain: String, listTitle: String, timestamp: Long)`
   - `data class FilterListStatus(id: FilterListId, enabled: Boolean, ruleCount: Int)`
@@ -95,9 +95,9 @@ git commit -m "feat(shield): bundle EasyList, EasyPrivacy, AdGuard DNS filter li
 package com.optimizer.android.domain.model
 
 enum class FilterListId(val title: String, val assetFile: String, val updateUrl: String) {
-    EASYLIST("EasyList", "easylist.txt", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt"),
-    EASYPRIVACY("EasyPrivacy", "easyprivacy.txt", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt"),
-    ADGUARD_DNS("AdGuard DNS", "adguard_dns.txt", "https://raw.githubusercontent.com/AdguardTeam/AdguardSDNSFilter/master/Filters/AdGuardDNSFilter.txt")
+    EASYLIST("EasyList", "easylist.txt", "https://easylist.to/easylist/easylist.txt"),
+    EASYPRIVACY("EasyPrivacy", "easyprivacy.txt", "https://easylist.to/easylist/easyprivacy.txt"),
+    ADGUARD_DNS("AdGuard DNS", "adguard_dns.txt", "https://raw.githubusercontent.com/AdguardTeam/AdGuardSDNSFilter/gh-pages/Filters/filter.txt")
 }
 
 data class ShieldStats(
@@ -1463,13 +1463,13 @@ class ShieldActivity : ComponentActivity() {
 }
 ```
 
-- [ ] **Step 2: Manifest** — tambahkan setelah AppEraserActivity:
+- [ ] **Step 2: Manifest** ï¿½ tambahkan setelah AppEraserActivity:
 
 ```xml
 <activity android:name=".presentation.ShieldActivity" android:exported="false" />
 ```
 
-- [ ] **Step 3: MainActivity** — kartu "DNS-LEVEL WEB SHIELD": ganti `onClick = { viewModel.toggleDialog(DialogType.VPN) }` menjadi `onClick = { startActivity(Intent(this@MainActivity, ShieldActivity::class.java)) }` (+ import `com.optimizer.android.presentation.ShieldActivity`). Hapus blok dialog `if (uiState.activeDialog == DialogType.VPN) {...}` dan val `shieldAccent` yang kini tak terpakai. `DialogType` enum, `requestVpn()`, `vpnLauncher` DIPERTAHANKAN di MainActivity (tidak merusak apa pun). Verifikasi: grep `DialogType.VPN` di MainActivity = 0 hasil.
+- [ ] **Step 3: MainActivity** ï¿½ kartu "DNS-LEVEL WEB SHIELD": ganti `onClick = { viewModel.toggleDialog(DialogType.VPN) }` menjadi `onClick = { startActivity(Intent(this@MainActivity, ShieldActivity::class.java)) }` (+ import `com.optimizer.android.presentation.ShieldActivity`). Hapus blok dialog `if (uiState.activeDialog == DialogType.VPN) {...}` dan val `shieldAccent` yang kini tak terpakai. `DialogType` enum, `requestVpn()`, `vpnLauncher` DIPERTAHANKAN di MainActivity (tidak merusak apa pun). Verifikasi: grep `DialogType.VPN` di MainActivity = 0 hasil.
 
 - [ ] **Step 4: Commit**
 
