@@ -21,9 +21,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -42,7 +40,7 @@ class LocalFirewallService : VpnService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val forwarder by lazy { DnsForwarder(this) }
-    private val writeMutex = kotlinx.coroutines.sync.Mutex()
+    private val writeLock = Any()
     private val inFlight = kotlinx.coroutines.sync.Semaphore(16)
 
     companion object {
@@ -129,7 +127,7 @@ class LocalFirewallService : VpnService() {
         when (decision) {
             is ShieldDecision.Block -> {
                 val dnsResp = DnsResponder.blockedResponse(query)
-                writeMutex.withLock { output.write(IpPacket.buildUdp4Response(pkt, dnsResp)) }
+                synchronized(writeLock) { output.write(IpPacket.buildUdp4Response(pkt, dnsResp)) }
                 dnsShieldRepository.recordBlocked(query.domain, decision.listTitle)
             }
             ShieldDecision.Allow -> {
@@ -140,7 +138,7 @@ class LocalFirewallService : VpnService() {
                         val upstream = forwarder.forward(pktRef.payload)
                         val dnsPayload = upstream ?: DnsResponder.servfailResponse(queryRef)
                         val response = IpPacket.buildUdp4Response(pktRef, dnsPayload)
-                        writeMutex.withLock { output.write(response) }
+                        synchronized(writeLock) { output.write(response) }
                         dnsShieldRepository.incrementAllowed()
                     }
                 }
