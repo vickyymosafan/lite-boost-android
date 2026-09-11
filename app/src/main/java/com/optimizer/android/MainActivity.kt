@@ -37,6 +37,7 @@ import com.optimizer.android.presentation.AppEraserActivity
 import com.optimizer.android.presentation.DialogType
 import com.optimizer.android.presentation.MainUiState
 import com.optimizer.android.presentation.MainViewModel
+import com.optimizer.android.presentation.ShieldActivity
 import com.optimizer.android.ui.components.BrutalBar
 import com.optimizer.android.ui.components.NeoDialog
 import com.optimizer.android.ui.components.SectionHeader
@@ -229,7 +230,7 @@ class MainActivity : ComponentActivity() {
             SuperpowerCard(
                 title = "DNS-LEVEL WEB SHIELD",
                 icon = Icons.Filled.CloudOff,
-                onClick = { viewModel.toggleDialog(DialogType.VPN) },
+                onClick = { startActivity(Intent(this@MainActivity, ShieldActivity::class.java)) },
                 accent = colors.accent(FeatureType.SHIELD),
                 index = 10
             )
@@ -280,21 +281,8 @@ class MainActivity : ComponentActivity() {
 
         // --- DIALOGS (accent per fitur) ---
         val cleanAccent = colors.accent(FeatureType.CLEANER)
-        val shieldAccent = colors.accent(FeatureType.SHIELD)
         val vaultAccent = colors.accent(FeatureType.VAULT)
 
-        if (uiState.activeDialog == DialogType.VPN) {
-            NeoDialog(
-                title = "AKTIFKAN DNS SHIELD?",
-                text = "Sistem akan mengaktifkan VPN Lokal untuk memblokir seluruh iklan dan situs kotor se-sistem via AdGuard DNS.",
-                onConfirm = {
-                    viewModel.toggleDialog(DialogType.NONE)
-                    requestVpn()
-                },
-                onDismiss = { viewModel.toggleDialog(DialogType.NONE) },
-                accent = shieldAccent
-            )
-        }
         if (uiState.activeDialog == DialogType.JUNK) {
             NeoDialog(
                 title = "PINDAI & HAPUS CACHE SAMPAH?",

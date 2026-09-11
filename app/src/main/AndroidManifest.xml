@@ -43,6 +43,8 @@
         
         <activity android:name=".presentation.AppEraserActivity" android:exported="false" android:theme="@style/Theme.AppCompat.NoActionBar" />
 
+        <activity android:name=".presentation.ShieldActivity" android:exported="false" />
+
         <service
             android:name=".LocalFirewallService"
             android:permission="android.permission.BIND_VPN_SERVICE"
