@@ -83,7 +83,7 @@ class DnsShieldRepositoryImpl @Inject constructor(
     override fun recordBlocked(domain: String, listTitle: String) {
         _stats.update { it.copy(blocked = it.blocked + 1) }
         _blockedLog.update { current ->
-            (BlockedLogEntry(domain, listTitle, System.currentTimeMillis()) + current).take(200)
+            (listOf(BlockedLogEntry(domain, listTitle, System.currentTimeMillis())) + current).take(200)
         }
     }
 
@@ -139,7 +139,7 @@ class DnsShieldRepositoryImpl @Inject constructor(
 
     override fun setListEnabled(id: FilterListId, enabled: Boolean) {
         listEnabled[id] = enabled
-        prefs.edit().putStringSet(KEY_ENABLED, listEnabled.filterValues { it }.keys.toSet()).apply()
+        prefs.edit().putStringSet(KEY_ENABLED, listEnabled.filterValues { it }.keys.map { it.name }.toSet()).apply()
         reloadLists()
     }
 

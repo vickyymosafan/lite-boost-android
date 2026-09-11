@@ -65,7 +65,7 @@ object IpPacket {
             i += 2
         }
         if (count % 2 == 1) sum += (data[end - 1].toInt() and 0xFF) shl 8
-        while (sum shr 16 != 0) sum = (sum and 0xFFFF) + (sum shr 16)
+        while (sum shr 16 != 0L) sum = (sum and 0xFFFF) + (sum shr 16)
         return (sum.inv() and 0xFFFFL).toInt()
     }
 }
