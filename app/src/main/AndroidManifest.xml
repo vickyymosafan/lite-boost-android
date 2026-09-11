@@ -16,6 +16,9 @@
     <!-- Permission for Deep Root App Eraser -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- Permission for DNS Shield filter list updates -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".OmnixApplication"
         android:requestLegacyExternalStorage="true"
