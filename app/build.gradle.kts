@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("kotlin-kapt")
     id("com.google.dagger.hilt.android")
+    id("androidx.baselineprofile")
 }
 
 android {
@@ -35,6 +36,11 @@ android {
             )
             signingConfig = signingConfigs.getByName("debug")
         }
+        create("benchmark") {
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -45,6 +51,17 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("pixel6Api34") {
+                    device = "Pixel 6"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+            }
+        }
     }
 }
 

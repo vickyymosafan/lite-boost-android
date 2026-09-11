@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "AndroidOptimizer"
 include(":app")
+include(":baselineprofile")
