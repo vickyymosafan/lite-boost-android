@@ -68,39 +68,71 @@ fun StatusCard(
 ) {
     val colors = OmnixThemeColors.colors
     val border = if (alert) colors.danger else colors.ink
-    val alertPulse = rememberInfiniteTransition(label = "alertPulse")
-    val pulseAlpha by alertPulse.animateFloat(
-        initialValue = 1f, targetValue = 0.55f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = OmnixMotion.ambient), RepeatMode.Reverse),
-        label = "pulseAlpha"
-    )
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(alert) { if (alert) OmnixHaptics.buzz(haptics) }
 
     StaggerIn(index, modifier) {
-        OutlinedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RectangleShape,
-            border = BorderStroke(2.dp, border.copy(alpha = if (alert) pulseAlpha else 1f)),
-            colors = CardDefaults.outlinedCardColors(containerColor = colors.base)
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(
-                    title.uppercase(),
-                    style = OmnixType.label,
-                    color = if (alert) colors.danger else colors.grid
-                )
-                Spacer(Modifier.height(6.dp))
-                AnimatedContent(
-                    targetState = value,
-                    transitionSpec = {
-                        (slideInVertically(OmnixMotion.standard()) { it } + fadeIn(OmnixMotion.standard())) togetherWith
-                            (slideOutVertically(OmnixMotion.standard()) { -it } + fadeOut(OmnixMotion.standard()))
-                    },
-                    label = "statusValue"
-                ) { v ->
-                    Text(v, style = OmnixType.valueBig, color = if (alert) colors.danger else colors.ink)
-                }
+        if (alert) {
+            AlertPulseCard(title, value, border)
+        } else {
+            StatusCardContent(title, value, border)
+        }
+    }
+}
+
+@Composable
+private fun AlertPulseCard(title: String, value: String, border: Color) {
+    val colors = OmnixThemeColors.colors
+    val pulse = rememberInfiniteTransition(label = "alertPulse")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 1f, targetValue = 0.55f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = OmnixMotion.ambient), RepeatMode.Reverse),
+        label = "pulseAlpha"
+    )
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RectangleShape,
+        border = BorderStroke(2.dp, border.copy(alpha = pulseAlpha)),
+        colors = CardDefaults.outlinedCardColors(containerColor = colors.base)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title.uppercase(), style = OmnixType.label, color = colors.danger)
+            Spacer(Modifier.height(6.dp))
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (slideInVertically(OmnixMotion.standard()) { it } + fadeIn(OmnixMotion.standard())) togetherWith
+                        (slideOutVertically(OmnixMotion.standard()) { -it } + fadeOut(OmnixMotion.standard()))
+                },
+                label = "statusValue"
+            ) { v ->
+                Text(v, style = OmnixType.valueBig, color = colors.danger)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusCardContent(title: String, value: String, border: Color) {
+    val colors = OmnixThemeColors.colors
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RectangleShape,
+        border = BorderStroke(2.dp, border),
+        colors = CardDefaults.outlinedCardColors(containerColor = colors.base)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title.uppercase(), style = OmnixType.label, color = colors.grid)
+            Spacer(Modifier.height(6.dp))
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (slideInVertically(OmnixMotion.standard()) { it } + fadeIn(OmnixMotion.standard())) togetherWith
+                        (slideOutVertically(OmnixMotion.standard()) { -it } + fadeOut(OmnixMotion.standard()))
+                },
+                label = "statusValue"
+            ) { v ->
+                Text(v, style = OmnixType.valueBig, color = colors.ink)
             }
         }
     }

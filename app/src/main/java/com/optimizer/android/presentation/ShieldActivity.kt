@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -90,12 +89,12 @@ class ShieldActivity : ComponentActivity() {
         val paused by viewModel.paused.collectAsState()
         val lastUpdate by viewModel.lastUpdate.collectAsState()
         val running by viewModel.vpnRunning.collectAsState()
+        val allowList by viewModel.allowlist.collectAsState()
+        val rulesReady by viewModel.rulesReady.collectAsState()
         var allowInput by remember { mutableStateOf("") }
-        var allowTick by remember { mutableIntStateOf(0) }
-        val allowList = remember(allowTick) { viewModel.allowlistSnapshot() }
         val dateFormat = remember { SimpleDateFormat("dd MMM HH:mm", Locale.getDefault()) }
 
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("WEB SHIELD", style = OmnixType.display, color = colors.ink)
                 Spacer(Modifier.width(10.dp))
@@ -137,16 +136,20 @@ class ShieldActivity : ComponentActivity() {
             TerminalLog(logs = blockedLog.map { "${it.domain} [${it.listTitle}]" })
 
             SectionHeader("03", "FILTER LISTS")
-            statuses.forEach { st ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(st.id.title, style = OmnixType.title, color = colors.ink)
-                        Text("${st.ruleCount} rules", style = OmnixType.label, color = colors.grid)
+            if (!rulesReady) {
+                Text("rules: …", style = OmnixType.label, color = colors.grid)
+            } else {
+                statuses.forEach { st ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(st.id.title, style = OmnixType.title, color = colors.ink)
+                            Text("${st.ruleCount} rules", style = OmnixType.label, color = colors.grid)
+                        }
+                        Switch(checked = st.enabled, onCheckedChange = { viewModel.setListEnabled(st.id, it) })
                     }
-                    Switch(checked = st.enabled, onCheckedChange = { viewModel.setListEnabled(st.id, it) })
                 }
             }
             Text(
@@ -175,15 +178,14 @@ class ShieldActivity : ComponentActivity() {
                     onClick = {
                         viewModel.addAllow(allowInput)
                         allowInput = ""
-                        allowTick++
                     },
                     shape = RectangleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = colors.base)
                 ) { Text("ADD") }
             }
             Spacer(Modifier.height(8.dp))
-            LazyColumn(modifier = Modifier.height(120.dp)) {
-                items(allowList, key = { it }) { domain ->
+            Column {
+                allowList.sorted().forEach { domain ->
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -195,7 +197,6 @@ class ShieldActivity : ComponentActivity() {
                             color = colors.danger,
                             modifier = Modifier.clickable {
                                 viewModel.removeAllow(domain)
-                                allowTick++
                             }
                         )
                     }

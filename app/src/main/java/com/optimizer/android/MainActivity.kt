@@ -44,6 +44,7 @@ import com.optimizer.android.ui.components.SectionHeader
 import com.optimizer.android.ui.components.StatusCard
 import com.optimizer.android.ui.components.SuperpowerCard
 import com.optimizer.android.ui.components.TerminalLog
+import com.optimizer.android.data.worker.FilterListUpdateWorker
 import com.optimizer.android.ui.theme.FeatureType
 import com.optimizer.android.ui.theme.OmnixTheme
 import com.optimizer.android.ui.theme.OmnixThemeColors
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FilterListUpdateWorker.schedule(this)
         checkPermissions()
         viewModel.loadVaultContent()
 

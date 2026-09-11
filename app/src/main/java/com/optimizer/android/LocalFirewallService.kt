@@ -21,6 +21,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -38,6 +40,8 @@ class LocalFirewallService : VpnService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val forwarder by lazy { DnsForwarder(this) }
+    private val writeLock = Any()
+    private val inFlight = kotlinx.coroutines.sync.Semaphore(16)
 
     companion object {
         private const val ACTION_START = "com.optimizer.android.ACTION_START"
@@ -123,14 +127,21 @@ class LocalFirewallService : VpnService() {
         when (decision) {
             is ShieldDecision.Block -> {
                 val dnsResp = DnsResponder.blockedResponse(query)
-                output.write(IpPacket.buildUdp4Response(pkt, dnsResp))
+                synchronized(writeLock) { output.write(IpPacket.buildUdp4Response(pkt, dnsResp)) }
                 dnsShieldRepository.recordBlocked(query.domain, decision.listTitle)
             }
             ShieldDecision.Allow -> {
-                val upstream = forwarder.forward(pkt.payload)
-                val dnsPayload = upstream ?: DnsResponder.servfailResponse(query)
-                output.write(IpPacket.buildUdp4Response(pkt, dnsPayload))
-                dnsShieldRepository.incrementAllowed()
+                val pktRef = pkt
+                val queryRef = query
+                ioScope.launch {
+                    inFlight.withPermit {
+                        val upstream = forwarder.forward(pktRef.payload)
+                        val dnsPayload = upstream ?: DnsResponder.servfailResponse(queryRef)
+                        val response = IpPacket.buildUdp4Response(pktRef, dnsPayload)
+                        synchronized(writeLock) { output.write(response) }
+                        dnsShieldRepository.incrementAllowed()
+                    }
+                }
             }
         }
     }

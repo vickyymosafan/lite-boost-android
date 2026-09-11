@@ -2,6 +2,7 @@ package com.optimizer.android.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.optimizer.android.data.filter.FilterListParser
 import com.optimizer.android.data.filter.FilterListStore
 import com.optimizer.android.domain.model.BlockedLogEntry
@@ -11,11 +12,16 @@ import com.optimizer.android.domain.model.ShieldDecision
 import com.optimizer.android.domain.model.ShieldStats
 import com.optimizer.android.domain.repository.DnsShieldRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
@@ -50,13 +56,31 @@ class DnsShieldRepositoryImpl @Inject constructor(
     override val lastUpdate: StateFlow<Long?> = _lastUpdate.asStateFlow()
     private val _engineVersion = MutableStateFlow(0)
     override val engineVersion: StateFlow<Int> = _engineVersion.asStateFlow()
+    private val _allowlist = MutableStateFlow<Set<String>>(userAllow.toSet())
+    override val allowlist: StateFlow<Set<String>> = _allowlist.asStateFlow()
+    private val _rulesReady = MutableStateFlow(false)
+    override val rulesReady: StateFlow<Boolean> = _rulesReady.asStateFlow()
 
     private val listEnabled = ConcurrentHashMap<FilterListId, Boolean>().apply {
         val saved = prefs.getStringSet(KEY_ENABLED, FilterListId.values().map { it.name }.toSet())
         FilterListId.values().forEach { put(it, saved?.contains(it.name) != false) }
     }
 
-    init { reloadLists() }
+    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val loadDispatcher = Dispatchers.Default.limitedParallelism(1)
+
+    private val initFailureHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("DnsShield", "Initial shield list load failed", throwable)
+    }
+
+    init {
+        engineScope.launch(loadDispatcher + initFailureHandler) {
+            loadLists(null)
+            _rulesReady.value = true
+        }
+    }
 
     override fun checkDomain(domain: String): ShieldDecision {
         if (FilterListParser.checkDomain(userAllowSet(), domain)) return ShieldDecision.Allow
@@ -87,23 +111,35 @@ class DnsShieldRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun reloadLists() {
-        val statuses = ArrayList<FilterListStatus>()
-        FilterListId.values().forEach { id ->
-            if (listEnabled[id] != true) { statuses.add(FilterListStatus(id, false, 0)); return@forEach }
+    override fun reloadLists(changed: FilterListId?) {
+        engineScope.launch(loadDispatcher) { loadLists(changed) }
+    }
+
+    private fun loadLists(changed: FilterListId?) {
+        val targets = if (changed == null) FilterListId.values().toList() else listOf(changed)
+        val statuses = _listStatuses.value.toMutableList()
+        targets.forEach { id ->
+            if (listEnabled[id] != true) {
+                blockedByList[id] = emptySet(); allowedByList[id] = emptySet()
+                statuses.removeAll { it.id == id }
+                statuses.add(FilterListStatus(id, false, 0))
+                return@forEach
+            }
             val content = store.readUpdated(id).takeIf { !it.isNullOrBlank() } ?: store.readBundled(id)
             val result = FilterListParser.parse(content)
             if (result.ruleCount < 100) {
                 // korup/terlalu kecil → buang, list ini kosong (fallback berikutnya via update)
                 blockedByList[id] = emptySet(); allowedByList[id] = emptySet()
+                statuses.removeAll { it.id == id }
                 statuses.add(FilterListStatus(id, true, 0))
             } else {
                 blockedByList[id] = result.blocked
                 allowedByList[id] = result.allowed
+                statuses.removeAll { it.id == id }
                 statuses.add(FilterListStatus(id, true, result.ruleCount))
             }
         }
-        _listStatuses.value = statuses
+        _listStatuses.value = statuses.sortedBy { it.id.ordinal }
         _engineVersion.update { it + 1 }
     }
 
@@ -124,7 +160,7 @@ class DnsShieldRepositoryImpl @Inject constructor(
             }
         }
         if (anySuccess) {
-            reloadLists()
+            reloadLists(null)
             val now = System.currentTimeMillis()
             prefs.edit().putLong(KEY_LAST_UPDATE, now).apply()
             _lastUpdate.value = now
@@ -140,7 +176,7 @@ class DnsShieldRepositoryImpl @Inject constructor(
     override fun setListEnabled(id: FilterListId, enabled: Boolean) {
         listEnabled[id] = enabled
         prefs.edit().putStringSet(KEY_ENABLED, listEnabled.filterValues { it }.keys.map { it.name }.toSet()).apply()
-        reloadLists()
+        reloadLists(id)
     }
 
     override fun addAllowDomain(domain: String) {
@@ -148,11 +184,13 @@ class DnsShieldRepositoryImpl @Inject constructor(
         if (d.isEmpty()) return
         userAllow.add(d)
         prefs.edit().putStringSet(KEY_ALLOW, userAllow.toSet()).apply()
+        _allowlist.value = userAllow.toSet()
     }
 
     override fun removeAllowDomain(domain: String) {
         userAllow.remove(domain.lowercase())
         prefs.edit().putStringSet(KEY_ALLOW, userAllow.toSet()).apply()
+        _allowlist.value = userAllow.toSet()
     }
 
     private fun userAllowSet(): Set<String> = userAllow
