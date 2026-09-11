@@ -11,8 +11,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -97,8 +100,8 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(activeDialog = DialogType.NONE) }
             log("MEMULAI OPTIMISASI RAM & GC...")
-            System.gc()
-            
+            delay(200)
+            withContext(Dispatchers.IO) { System.gc() }
             systemRepository.killBackgroundProcesses().collect { msg -> log(msg) }
             
             refreshSystemStatus()

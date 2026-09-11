@@ -19,13 +19,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.optimizer.android.ui.theme.OmnixThemeColors
 import com.optimizer.android.ui.theme.OmnixType
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TerminalLog(logs: List<String>, modifier: Modifier = Modifier) {
     val colors = OmnixThemeColors.colors
@@ -35,7 +35,7 @@ fun TerminalLog(logs: List<String>, modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
         label = "cursorAlpha"
     )
-    val visible = logs.takeLast(50) // limit 50 baris
+    val visible = remember(logs) { logs.takeLast(50) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(visible.size) {
@@ -69,7 +69,7 @@ fun TerminalLog(logs: List<String>, modifier: Modifier = Modifier) {
                         color = colors.ink,
                         modifier = Modifier
                             .padding(vertical = 2.dp)
-                            .animateItemPlacement()
+                            .animateItem()
                     )
                 }
                 item(key = "cursor") {

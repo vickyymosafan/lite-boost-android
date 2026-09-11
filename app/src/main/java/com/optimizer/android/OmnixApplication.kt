@@ -3,7 +3,6 @@ package com.optimizer.android
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.optimizer.android.data.worker.FilterListUpdateWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -14,7 +13,6 @@ class OmnixApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        FilterListUpdateWorker.schedule(this)
     }
 
     override val workManagerConfiguration: Configuration
