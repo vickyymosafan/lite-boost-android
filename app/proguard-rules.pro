@@ -20,5 +20,6 @@
 -keep class androidx.camera.** { *; }
 
 # Kotlin
--keepclassmembers class kotlin.Metadata { *; }
+-keep class kotlin.Metadata { *; }
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, AnnotationDefault, SourceFile, LineNumberTable
 -dontwarn kotlin.**
