@@ -17,8 +17,8 @@ class OmnixApplication : Application(), Configuration.Provider {
         FilterListUpdateWorker.schedule(this)
     }
 
-    override fun getWorkManagerConfiguration(): Configuration =
-        Configuration.Builder()
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
 }
